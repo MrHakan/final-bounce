@@ -11,6 +11,10 @@ import { DangerZone } from '../entities/DangerZone.js';
 import { SpatialGrid } from '../physics/SpatialGrid.js';
 import { circleRect, circleCircle, contact } from '../physics/Collision.js';
 
+// A racer is crushed when the purple reaches this fraction of its half-size
+// from its centre (i.e. it could not be pushed out of the way).
+const CRUSH = 0.25;
+
 const MAJOR = new Set(['weaponPickup', 'kill', 'dangerDeath', 'nearMiss', 'barrierBreak', 'finalBreak',
   'finish', 'leadChange', 'weaponBreak', 'weaponLost', 'antiStuck', 'orphan', 'raceEnd']);
 
@@ -163,10 +167,12 @@ export class Simulation {
         if (!o.alive || !circleRect(c.x, c.y, r, o)) continue;
         const approaching = c.vx * contact.nx + c.vy * contact.ny < 0;
         if (o.color !== null && o.color === c.id) {
-          // Matching colour smashes straight through.
+          // Matching colour breaks the block, but every contact is still a
+          // collision: the racer bounces off it.
           o.alive = false;
           c.blocksDestroyed++;
           this.emit('barrierBreak', { actor: c.id, color: o.color, role: o.role, id: o.id, x: o.x + o.w / 2, y: o.y + o.h / 2, w: o.w, h: o.h });
+          if (this.push(c)) bounced = true;
           continue;
         }
         if (o.color === null) {
@@ -286,20 +292,37 @@ export class Simulation {
     if (c.progress > c.maxProgress) c.maxProgress = c.progress;
   }
 
+  // The purple field is a solid, advancing wall. Touching it only bounces a
+  // racer and pushes it down the course; a racer dies when it is crushed:
+  // the field keeps advancing but walls, closed gates or a dead end stop the
+  // racer from being pushed any further.
   checkDanger(c) {
     const dz = this.danger;
     const f = this.field;
-    const o = c.r * 0.85;
-    let m = f.danger[f.idxAt(c.x, c.y)];
-    let v;
-    v = f.danger[f.idxAt(c.x - o, c.y - o)]; if (v < m) m = v;
-    v = f.danger[f.idxAt(c.x + o, c.y - o)]; if (v < m) m = v;
-    v = f.danger[f.idxAt(c.x - o, c.y + o)]; if (v < m) m = v;
-    v = f.danger[f.idxAt(c.x + o, c.y + o)]; if (v < m) m = v;
-    const gap = m - dz.dist;
+    let i = f.idxAt(c.x, c.y);
+    let gap = f.danger[i] - dz.dist;
     c.dangerGap = gap;
     if (dz.dist <= 0) return;
-    if (gap < 0) { this.kill(c, 'danger', null); return; }
+    if (gap < c.r) {
+      const fx = f.flowX[i], fy = f.flowY[i];
+      if (fx !== 0 || fy !== 0) {
+        const push = Math.min(3, c.r - gap);
+        c.x += fx * push; c.y += fy * push;
+        const vn = c.vx * fx + c.vy * fy;
+        if (vn < 0) {
+          c.vx -= 2 * vn * fx; c.vy -= 2 * vn * fy;
+          this.normalize(c); this.axisGuard(c);
+          this.emit('bounce', { actor: c.id, on: 'purple', x: c.x, y: c.y });
+        }
+        // Walls and closed blocks push back; if they win, the gap closes.
+        this.resolveStatic(c);
+        if (!c.alive) return;
+        i = f.idxAt(c.x, c.y);
+        gap = f.danger[i] - dz.dist;
+        c.dangerGap = gap;
+      }
+      if (gap < c.r * CRUSH) { this.kill(c, 'danger', null); return; }
+    }
     if (gap < c.size * 1.5 && this.time - c.lastNearMiss > 2.5) {
       c.lastNearMiss = this.time;
       this.emit('nearMiss', { actor: c.id, gap, x: c.x, y: c.y });

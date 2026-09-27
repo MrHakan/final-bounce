@@ -150,12 +150,41 @@ export const TESTS = [
     const blue = sim.contestants[1], red = sim.contestants[0];
     return (red.alive && !blue.alive && blue.deathCause === 'kill' && blue.killedBy === 'red' && red.kills === 1) || 'kill not resolved';
   }],
-  ['danger zone eliminates contestants', () => {
-    const lvl = makeArena({ params: { danger: { v0: 400, accel: 0, delay: 0.2, catchGap: 1e9, catchK: 0, maxRate: 400, scale: 1 } } });
-    lvl.finish = { x: 120 + 280, y: 200 + 280, w: 10, h: 10 };
-    lvl.spawns = [spawn('yellow', 150, 150, 1), spawn('green', 100, 100, 2)];
-    const sim = runFor(new Simulation(lvl), 5);
-    return sim.contestants.every((c) => !c.alive && c.deathCause === 'danger') || 'contestants survived the purple field';
+  ['purple crushes racers against a gate they cannot open', () => {
+    // A green gate seals the arena; only red/yellow race, so nobody can open it.
+    const gate = makeBarrier(120 + 200, 197, 8, 306, 'green', 1, 'gate');
+    const lvl = makeArena({ barriers: [gate], finish: { x: 120 + 240, y: 200 + 130, w: 40, h: 40 },
+      params: { danger: { v0: 60, accel: 0, delay: 0.2, catchGap: 1e9, catchK: 0, maxRate: 60, scale: 1 } } });
+    lvl.spawns = [spawn('yellow', 60, 150, 1), spawn('red', 100, 100, 2)];
+    const sim = runFor(new Simulation(lvl), 12);
+    return sim.contestants.every((c) => !c.alive && c.deathCause === 'danger') || 'racers were not crushed';
+  }],
+  ['touching purple bounces (it only kills by crushing)', () => {
+    const lvl = makeArena({ finish: { x: 120 + 250, y: 200 + 130, w: 40, h: 40 },
+      params: { danger: { v0: 40, accel: 0, delay: 0.1, catchGap: 1e9, catchK: 0, maxRate: 40, scale: 1 } } });
+    lvl.spawns = [spawn('blue', 70, 150, Math.PI + 0.3)];
+    const sim = new Simulation(lvl);
+    let touched = false;
+    for (let i = 0; i < 900 && !sim.ended; i++) { sim.step(); if (sim.events.some((e) => e.type === 'bounce' && e.on === 'purple')) touched = true; }
+    return (touched && sim.contestants[0].alive) || `touched=${touched} alive=${sim.contestants[0].alive}`;
+  }],
+  ['matching colour breaks its block and still bounces', () => {
+    const bar = makeBarrier(120 + 140, 200, 10, 300, 'red', 1, 'gate');
+    const lvl = makeArena({ barriers: [bar] }); lvl.spawns = [spawn('red', 60, 150, 0)];
+    const sim = new Simulation(lvl);
+    for (let i = 0; i < 240; i++) {
+      sim.step();
+      if (!sim.barriers[0].alive) return (sim.contestants[0].vx < 0) || 'red kept going after breaking its block';
+    }
+    return 'block never broke';
+  }],
+  ['every course has a gate of every colour', () => {
+    for (const p of ['short', 'medium', 'chaos']) for (let i = 0; i < 15; i++) {
+      const l = generateLevel(seedFromIndex('GATES' + p, i), resolveRaceConfig(p, { validateRace: false })).level;
+      const colors = new Set(l.barriers.filter((b) => b.role === 'gate').map((b) => b.color));
+      if (colors.size < 4) return `${p} seed ${i}: gate colours ${[...colors].join(',')}`;
+    }
+    return true;
   }],
   ['finish detection ends the race (FIRST WINS)', () => {
     const lvl = makeArena({ finish: { x: 120 + 220, y: 200 + 100, w: 60, h: 100 } });

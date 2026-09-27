@@ -49,9 +49,9 @@ export const LONG_COMPLEXITY = {
 };
 
 export const BARRIER_DENSITY = {
-  low:    { gates: [1, 1], roomBarriers: [0, 1] },
-  medium: { gates: [1, 2], roomBarriers: [1, 2] },
-  high:   { gates: [2, 3], roomBarriers: [2, 4] },
+  low:    { gates: [4, 4], roomBarriers: [0, 1] },   // every colour always gets a gate
+  medium: { gates: [4, 5], roomBarriers: [1, 2] },
+  high:   { gates: [5, 6], roomBarriers: [2, 3] },
 };
 
 // Purple pursuit, in geodesic course px. rate(t) = v0 + accel * (t - delay),

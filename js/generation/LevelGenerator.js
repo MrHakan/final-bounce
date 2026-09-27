@@ -76,21 +76,29 @@ export function buildLevel(seed, cfg, attempt) {
   const weaponIndex = cfg.weaponEnabled ? Math.max(1, Math.min(N - 3, Math.round(N * rng.range(0.3, 0.55)))) : -1;
   for (const cell of route) cell.stage = stageFor(cell.index, N, weaponIndex);
 
-  // Colour gates.
+  // Colour gates: one solid single-colour gate per chosen door, and every
+  // colour gets at least one gate, so the racers depend on each other to open
+  // the course (puzzle). Gates prefer to be spread out along the route.
   const dens = BARRIER_DENSITY[cfg.barrierDensity] || BARRIER_DENSITY.medium;
-  const gateCount = rng.int(dens.gates[0], dens.gates[1]);
-  const gateDoors = new Set();
   const candidates = [];
-  for (let i = 0; i <= N - 3; i++) if (i !== weaponIndex - 1 && i !== weaponIndex) candidates.push(i);
-  // First gate early ("colour barrier section" right after the start).
-  const early = candidates.filter((i) => i <= Math.max(1, Math.floor(N * 0.35)));
-  if (gateCount > 0 && early.length) gateDoors.add(rng.pick(early));
-  for (let tries = 0; gateDoors.size < gateCount && tries < 40; tries++) {
-    const i = rng.pick(candidates);
-    let ok = true;
-    for (const g of gateDoors) if (Math.abs(g - i) < 2) ok = false;
-    if (ok) gateDoors.add(i);
+  for (let i = 0; i <= N - 3; i++) candidates.push(i);
+  const gateCount = Math.min(candidates.length, Math.max(COLOR_IDS.length, rng.int(dens.gates[0], dens.gates[1])));
+  const gateDoors = new Set();
+  const gateOrder = rng.shuffle(candidates.slice());
+  for (const minSpacing of [2, 1]) {
+    for (const i of gateOrder) {
+      if (gateDoors.size >= gateCount) break;
+      if (gateDoors.has(i)) continue;
+      let ok = true;
+      for (const g of gateDoors) if (Math.abs(g - i) < minSpacing) ok = false;
+      if (ok) gateDoors.add(i);
+    }
   }
+  if (gateDoors.size < COLOR_IDS.length) return { ok: false, reason: 'route too short for one gate per colour' };
+  // Colours along the route: each colour once (shuffled), extras random.
+  const gateColor = new Map();
+  const firstColors = rng.shuffle(COLOR_IDS.slice());
+  [...gateDoors].sort((a, b) => a - b).forEach((di, k) => gateColor.set(di, k < firstColors.length ? firstColors[k] : rng.pick(COLOR_IDS)));
   const finalDoor = N - 2;
 
   // Doors between consecutive cells.
@@ -184,17 +192,12 @@ export function buildLevel(seed, cfg, attempt) {
   }
   if (cfg.weaponEnabled && !weapon) return { ok: false, reason: 'weapon could not be placed' };
 
-  // Colour gates: the door is split into 2-3 segments of different colours.
+  // Colour gates: a single solid block filling the whole doorway.
   for (const di of gateDoors) {
     const d = doors[di];
-    const k = d.w >= 72 ? 3 : 2;
-    const colors = rng.shuffle(COLOR_IDS.slice()).slice(0, k);
-    const seg = d.w / k;
-    for (let s = 0; s < k; s++) {
-      const a = d.a + s * seg;
-      if (d.orient === 'h') barriers.push(makeBarrier(a, d.pos - GATE_T / 2, seg, GATE_T, colors[s], 1, 'gate'));
-      else barriers.push(makeBarrier(d.pos - GATE_T / 2, a, GATE_T, seg, colors[s], 1, 'gate'));
-    }
+    const color = gateColor.get(di);
+    if (d.orient === 'h') barriers.push(makeBarrier(d.a, d.pos - GATE_T / 2, d.w, GATE_T, color, 1, 'gate'));
+    else barriers.push(makeBarrier(d.pos - GATE_T / 2, d.a, GATE_T, d.w, color, 1, 'gate'));
   }
 
   // Final neutral gate before the finish room.

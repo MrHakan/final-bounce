@@ -132,11 +132,13 @@ differently in another browser family.
   racers never ping-pong forever between parallel walls. If a racer stays inside
   a 2.5-body box for 4 s, its velocity is rotated a deterministic amount. It is
   never teleported.
-- **Colour barriers** (hatched blocks) break only for their own colour. The
-  matching racer smashes straight through. Everyone else bounces. Gates in
-  doorways are split into 2–3 colours. When a colour is eliminated, its
-  barriers turn into 1-HP grey blocks, so a dead colour can never softlock the
-  course.
+- **Colour gates (puzzle).** Doorways between sections are closed by solid,
+  single-colour gates. Every course has at least one gate of each of the four
+  colours, so every racer needs the others to open the way. Only the matching
+  colour can break a gate or colour block. Every contact is still a collision,
+  so the racer bounces back even when it breaks its own block. When a colour is
+  eliminated, its blocks turn into 1-HP grey blocks, so a dead colour can never
+  softlock the course.
 - **Final grey wall.** Neutral blocks in front of the finish room. Any racer
   damages them (1–4 HP, cracks show the damage).
 - **Blade.** The first living racer to touch it carries it. An armed racer
@@ -149,8 +151,11 @@ differently in another browser family.
   the route through every turn. Its front advances at
   `rate(t) = (v0 + a·(t − delay)) · scale`, plus a catch-up term when every
   survivor is far ahead. The catch-up term is capped so it never outruns the
-  racers. Touching purple eliminates. Coming within 1.5 body-widths logs a
-  near miss.
+  racers. The purple is **solid**: touching it bounces a racer and pushes it
+  down the course, and it fills each section completely as it advances. A racer
+  dies only when it is **crushed**, meaning the purple keeps coming but a wall,
+  a closed gate or a dead end stops the racer from being pushed any further.
+  Coming within 1.5 body-widths logs a near miss.
 - **Finish.** A racer finishes when its centre enters the checkered zone.
   *First wins* ends the race 0.6 s after the first finisher. *Survivors finish*
   runs until everyone has finished or died, or until the timeout.
@@ -177,7 +182,8 @@ Maps are *random but structured*:
    `FUNNEL`, `CORNER`, `POWERUP_ROOM`, plus colour gates and the final gate.
    Every piece goes through a fit check that keeps door approaches clear and
    forbids gaps narrower than a racer.
-4. **Placement**: colour gates (the first one early), the blade in a contested
+4. **Placement**: single-colour gates in doorways (at least one per colour,
+   spread along the route), the blade in a contested
    room at 30–55 % of the route, free-standing colour blocks, 2–6 grey final
    blocks in 1–2 layers, the finish zone, and a 2×2 spawn with colours
    shuffled across the slots.
@@ -265,6 +271,10 @@ an app. Everything on the canvas has a gameplay job:
 - **Composition**: the course is top-aligned under the HUD and never scaled
   above 1.3×. Courses using less than ~80 % of the frame width sit on the left
   and leave negative space on the right, where Instagram's buttons are.
+- **Long courses**: a close follow camera (up to 1.6×) tracks the main group
+  of racers and zooms out only as far as needed to keep that group in view.
+  When a racer breaks away and leaves the screen, a circular inset camera
+  appears in the lower-right corner and follows it until it rejoins.
 - **Effects**: small square fragments (3–8) for breaks and eliminations, and a
   camera shake capped at 4 px. Sound carries most of the feedback.
 - **Type**: Barlow Condensed for labels and IBM Plex Mono for numbers. Both

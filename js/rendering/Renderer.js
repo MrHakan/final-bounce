@@ -7,6 +7,7 @@
 // purple field. No glow, no gradients, no decoration without a gameplay job.
 import { VIEW_W, VIEW_H, RENDER_SCALE, CONTESTANTS, contestantById } from '../config/presets.js';
 import { TILE } from '../generation/CourseField.js';
+import { PIP } from './Camera.js';
 
 export const PALETTE = {
   void: '#15171c',
@@ -150,36 +151,74 @@ export class Renderer {
 
     const z = cam.zoom * S;
     ctx.setTransform(z, 0, 0, z, (-cam.x * cam.zoom + cam.shakeX) * S, (-cam.y * cam.zoom + cam.shakeY) * S);
+    const a = frame.alpha ?? 1;
+    this.drawScene(sim, view, a, cam.y, cam.y + VIEW_H / cam.zoom, frame.updateTrails !== false, frame.clock || 0);
+    if (frame.particles && view.particles) frame.particles.draw(ctx);
+    if (view.debug && sim) this.drawDebugWorld(sim, a);
+
+    ctx.setTransform(S, 0, 0, S, 0, 0);
+    if (sim && cam.pip) this.drawPip(sim, view, a, cam.pip);
+    this.drawHud(frame);
+  }
+
+  // World pass shared by the main view and the inset camera. The caller sets
+  // the transform; top/bottom (world y) limit the purple scan to what is visible.
+  drawScene(sim, view, a, top, bottom, updateTrails, clock) {
+    const { ctx } = this;
+    const level = this.level;
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this.floorLayer, 0, 0, level.width, level.height);
-    const a = frame.alpha ?? 1;
     if (sim) {
-      this.drawDanger(sim, cam);
-      if (view.trails) this.drawTrails(sim, a, frame.updateTrails !== false);
+      this.drawDanger(sim, top, bottom);
+      if (view.trails) this.drawTrails(sim, a, updateTrails);
     }
     ctx.drawImage(this.wallLayer, 0, 0, level.width, level.height);
     if (sim) {
       this.drawBumperHits(sim);
       this.drawBarriers(sim);
-      this.drawWeaponPickup(sim, frame.clock || 0);
+      this.drawWeaponPickup(sim, clock);
       this.drawContestants(sim, a, view);
     }
-    if (frame.particles && view.particles) frame.particles.draw(ctx);
-    if (view.debug && sim) this.drawDebugWorld(sim, a);
+  }
 
+  // Circular inset camera following a racer that broke away from the pack.
+  drawPip(sim, view, a, pip) {
+    const c = sim.contestants.find((x) => x.id === pip.id);
+    if (!c || pip.alpha <= 0) return;
+    const { ctx } = this;
+    const S = RENDER_SCALE;
+    const { x: px, y: py, r, zoom } = PIP;
+    const k = Math.min(1, pip.alpha);
+    ctx.save();
+    ctx.globalAlpha = 1;
+    // Outline first (so the clip edge stays crisp), then the clipped world.
+    ctx.fillStyle = PALETTE.ink;
+    ctx.beginPath(); ctx.arc(px, py, r + 2.5 * k, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px, py, r * (0.85 + 0.15 * k), 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = PALETTE.void; ctx.fillRect(px - r, py - r, 2 * r, 2 * r);
+    const z = zoom * S;
+    ctx.setTransform(z, 0, 0, z, (px - pip.x * zoom) * S, (py - pip.y * zoom) * S);
+    this.drawScene(sim, view, a, pip.y - r / zoom, pip.y + r / zoom, false, 0);
+    ctx.restore();
     ctx.setTransform(S, 0, 0, S, 0, 0);
-    this.drawHud(frame);
+    ctx.globalAlpha = k;
+    ctx.strokeStyle = c.color; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(px, py, r + 0.5, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = PALETTE.ink; ctx.fillRect(px - 26, py + r + 8, 8, 8);
+    ctx.fillStyle = c.color; ctx.fillRect(px - 25, py + r + 9, 6, 6);
+    this.text(c.name, px - 14, py + r + 12.5, { size: 12, spacing: 0.8, outline: 3 });
+    ctx.globalAlpha = 1;
   }
 
   // Stepped purple: whole 4px tiles, solid body + a lighter one-band edge.
-  drawDanger(sim, cam) {
+  drawDanger(sim, top, bottom) {
     const d = sim.danger.dist;
     if (d <= 0) return;
     const { ctx } = this;
     const f = this.level.field;
     const cols = f.cols;
-    const viewTop = Math.max(0, Math.floor(cam.y / TILE) - 1);
-    const viewBot = Math.min(f.rows, Math.ceil((cam.y + VIEW_H / cam.zoom) / TILE) + 1);
+    const viewTop = Math.max(0, Math.floor(top / TILE) - 1);
+    const viewBot = Math.min(f.rows, Math.ceil(bottom / TILE) + 1);
     const band = 6;
     const drawRuns = (lo, hi) => {
       for (let ty = viewTop; ty < viewBot; ty++) {

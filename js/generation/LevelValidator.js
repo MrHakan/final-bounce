@@ -1,6 +1,6 @@
 // Automatic map validation: structural checks on the generated geometry plus a
 // verdict on the headless test race.
-import { PHYSICS } from '../config/presets.js';
+import { PHYSICS, COLOR_IDS } from '../config/presets.js';
 
 export function validateStructure(level) {
   const f = level.field;
@@ -30,17 +30,10 @@ export function validateStructure(level) {
   const finals = level.barriers.filter((b) => b.role === 'final');
   if (finals.length < 2) problems.push('final gate missing');
   for (const b of finals) if (!isFinite(f.distAt(b.x + b.w / 2, b.y + b.h / 2))) { problems.push('final gate unreachable'); break; }
-  // Colour barriers can never permanently block: every gate has >=2 colours and
-  // orphaned colours turn neutral in the simulation. Verify the colour mix.
-  const gates = new Map();
-  for (const b of level.barriers) if (b.role === 'gate') {
-    const key = b.x.toFixed(0) + ':' + b.y.toFixed(0);
-    const k = level.doors.find((d) => (d.orient === 'h' ? Math.abs(b.y + b.h / 2 - d.pos) < 1 : Math.abs(b.x + b.w / 2 - d.pos) < 1));
-    const id = k ? k.index : key;
-    if (!gates.has(id)) gates.set(id, new Set());
-    gates.get(id).add(b.color);
-  }
-  for (const [id, set] of gates) if (set.size < 2) problems.push(`gate ${id} single colour`);
+  // Puzzle rule: every colour owns at least one gate. (A dead colour's gates
+  // turn neutral in the simulation, so this can never softlock.)
+  const gateColors = new Set(level.barriers.filter((b) => b.role === 'gate').map((b) => b.color));
+  for (const id of COLOR_IDS) if (!gateColors.has(id)) problems.push(`no ${id} gate`);
   // Geometry sanity: nothing outside the world, no degenerate pieces.
   for (const w of level.walls) {
     if (w.w <= 0 || w.h <= 0) { problems.push('degenerate wall'); break; }

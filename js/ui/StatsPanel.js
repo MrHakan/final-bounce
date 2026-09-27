@@ -5,7 +5,7 @@ import { CONTESTANTS, contestantById } from '../config/presets.js';
 const LOGGED = {
   'weapon:pickup': (e) => `${name(e.actor)} picked up the blade`,
   'weapon:break': (e) => `blade shattered (${name(e.actor)})`,
-  'contestant:killed': (e) => (e.cause === 'kill' ? `${name(e.by)} eliminated ${name(e.actor)}` : `${name(e.actor)} consumed by purple`),
+  'contestant:killed': (e) => (e.cause === 'kill' ? `${name(e.by)} eliminated ${name(e.actor)}` : `${name(e.actor)} crushed by purple`),
   'barrier:destroy': (e) => (e.type === 'finalBreak' ? `${name(e.actor)} broke a grey block` : `${name(e.actor)} smashed a ${e.color} barrier`),
   'barrier:orphan': (e) => `${name(e.actor)}'s barriers turned grey`,
   'contestant:finish': (e) => `${name(e.actor)} finished #${e.place}`,
@@ -68,7 +68,7 @@ export class StatsPanel {
       let res = '—';
       if (c.finished) res = `#${c.place} · ${c.finishTime.toFixed(1)}s`;
       else if (c.deathCause === 'kill') res = `KO by ${name(c.killedBy)} · ${c.deathTime.toFixed(1)}s`;
-      else if (c.deathCause === 'danger') res = `purple · ${c.deathTime.toFixed(1)}s`;
+      else if (c.deathCause === 'danger') res = `crushed · ${c.deathTime.toFixed(1)}s`;
       else if (c.alive) res = 'alive';
       return `<tr><td><i class="swatch" style="background:${def.color}"></i>${def.name}</td><td>${res}</td><td>${c.kills}</td><td>${c.blocksDestroyed}</td><td>${Math.round(c.maxProgress * 100)}%</td></tr>`;
     });

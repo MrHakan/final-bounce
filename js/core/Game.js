@@ -114,7 +114,7 @@ export class Game {
     this.seed = gen.level.seed;
     this.raceConfig = { ...gen.level.config };
     this.renderer.setLevel(this.level);
-    this.camera.setWorld(this.level.width, this.level.height, courseBounds(this.level));
+    this.camera.setWorld(this.level.width, this.level.height, courseBounds(this.level), this.level.config.mapLength === 'long');
     this.mode = 'live';
     this.resetRace();
     this.bus.emit('level:generated', { seed: this.seed, gen });
@@ -354,7 +354,7 @@ export class Game {
       while (sim.tick < target && !sim.ended) sim.step();
     }
     const cam = new Camera();
-    cam.setWorld(this.level.width, this.level.height, courseBounds(this.level));
+    cam.setWorld(this.level.width, this.level.height, courseBounds(this.level), this.level.config.mapLength === 'long');
     cam.update(sim, this.view.camera, 0, true);
     r.draw({
       sim, alpha: 1, camera: cam, view: { ...this.view, safeArea: false, debug: false, trails: false },
