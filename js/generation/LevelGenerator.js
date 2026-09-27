@@ -19,6 +19,7 @@ import { createCellContext, TEMPLATES, pickTemplate, addRoomBarriers } from './S
 import { makeWall } from '../entities/Wall.js';
 import { makeBarrier } from '../entities/Barrier.js';
 import { buildCourseField } from './CourseField.js';
+import { chooseStallColors, stallLayout, buildStalls } from './StartStalls.js';
 import { validateStructure, judgeRace } from './LevelValidator.js';
 import { evaluateRace } from './EntertainmentEvaluator.js';
 import { Simulation } from '../core/Simulation.js';
@@ -61,7 +62,7 @@ export function buildLevel(seed, cfg, attempt) {
   const height = L.originY + rows * L.cellH + L.bottomPad;
 
   const style = rng.pick(ROUTE_STYLES);
-  const path = generateRoute(rng.fork('route'), cols, rows, routeLen[0], routeLen[1], style);
+  const path = generateRoute(rng.fork('route'), cols, rows, routeLen[0], routeLen[1], style, true);
   if (!path) return { ok: false, reason: 'route generation failed' };
   classifyRoute(path);
   const N = path.length;
@@ -73,16 +74,19 @@ export function buildLevel(seed, cfg, attempt) {
   }));
 
   // Weapon placement: a contested room in the first half of the course.
-  const weaponIndex = cfg.weaponEnabled ? Math.max(1, Math.min(N - 3, Math.round(N * rng.range(0.3, 0.55)))) : -1;
+  const weaponIndex = cfg.weaponEnabled ? Math.max(2, Math.min(N - 3, Math.round(N * rng.range(0.3, 0.55)))) : -1;
   for (const cell of route) cell.stage = stageFor(cell.index, N, weaponIndex);
+  route[1].stage = 'START';
+  // Cells 0+1 form the starting stalls (one lane per racer).
+  const stall = stallLayout(route[0], route[1], t);
+  const stallColors = chooseStallColors(rng.fork('stalls'));
 
-  // Colour gates: one solid single-colour gate per chosen door, and every
-  // colour gets at least one gate, so the racers depend on each other to open
-  // the course (puzzle). Gates prefer to be spread out along the route.
+  // Colour gates in doorways further down the course (the stalls already
+  // make every colour necessary). Gates prefer to be spread out.
   const dens = BARRIER_DENSITY[cfg.barrierDensity] || BARRIER_DENSITY.medium;
   const candidates = [];
-  for (let i = 0; i <= N - 3; i++) candidates.push(i);
-  const gateCount = Math.min(candidates.length, Math.max(COLOR_IDS.length, rng.int(dens.gates[0], dens.gates[1])));
+  for (let i = 2; i <= N - 3; i++) candidates.push(i);
+  const gateCount = Math.min(candidates.length, rng.int(dens.gates[0], dens.gates[1]));
   const gateDoors = new Set();
   const gateOrder = rng.shuffle(candidates.slice());
   for (const minSpacing of [2, 1]) {
@@ -94,11 +98,9 @@ export function buildLevel(seed, cfg, attempt) {
       if (ok) gateDoors.add(i);
     }
   }
-  if (gateDoors.size < COLOR_IDS.length) return { ok: false, reason: 'route too short for one gate per colour' };
-  // Colours along the route: each colour once (shuffled), extras random.
   const gateColor = new Map();
-  const firstColors = rng.shuffle(COLOR_IDS.slice());
-  [...gateDoors].sort((a, b) => a - b).forEach((di, k) => gateColor.set(di, k < firstColors.length ? firstColors[k] : rng.pick(COLOR_IDS)));
+  const gateColors = rng.shuffle(COLOR_IDS.slice());
+  [...gateDoors].sort((a, b) => a - b).forEach((di, k) => gateColor.set(di, gateColors[k % gateColors.length]));
   const finalDoor = N - 2;
 
   // Doors between consecutive cells.
@@ -108,8 +110,22 @@ export function buildLevel(seed, cfg, attempt) {
     const e = sharedEdge(a, b, L);
     const maxW = e.len - 2 * t - 4;
     let w;
-    if (i === 0 && !gateDoors.has(0)) w = rng.range(maxW * 0.75, maxW); // quick exit from the start room
-    else if (gateDoors.has(i)) w = rng.range(Math.min(66, maxW), maxW);
+    if (i === 0) {
+      // Stall room: no wall at all between cells 0 and 1.
+      const door = { index: 0, orient: e.orient, pos: e.pos, a: e.start - t / 2, b: e.start + e.len + t / 2, w: e.len + t, merged: true };
+      doors.push(door); a.doors[e.sideA] = door; b.doors[DIRS[e.sideA].opp] = door;
+      continue;
+    }
+    if (i === 1 && e.orient === 'h') {
+      // Leave the stall room through the exit lane only.
+      const lo = stall.exit.x + 5, hi = stall.exit.x + stall.exit.w - 5;
+      const dw = Math.min(hi - lo, rng.range(44, 70));
+      const pos = rng.range(lo, hi - dw);
+      const door = { index: 1, orient: e.orient, pos: e.pos, a: pos, b: pos + dw, w: dw };
+      doors.push(door); a.doors[e.sideA] = door; b.doors[DIRS[e.sideA].opp] = door;
+      continue;
+    }
+    if (gateDoors.has(i)) w = rng.range(Math.min(66, maxW), maxW);
     else if (i === finalDoor) w = rng.range(62, Math.min(86, maxW));
     else if (i > 0 && rng.chance(cx.openDoor)) w = maxW; // merged room
     else w = rng.range(Math.min(52, maxW), maxW);
@@ -161,12 +177,12 @@ export function buildLevel(seed, cfg, attempt) {
   const trng = rng.fork('templates');
   const roomBarrierTotal = rng.int(dens.roomBarriers[0], dens.roomBarriers[1]);
   const roomBarrierCells = new Set();
-  const midCells = route.filter((c) => c.index > 0 && c.index < N - 2 && c.index !== weaponIndex).map((c) => c.index);
+  const midCells = route.filter((c) => c.index > 1 && c.index < N - 2 && c.index !== weaponIndex).map((c) => c.index);
   trng.shuffle(midCells);
   for (let i = 0; i < Math.min(roomBarrierTotal, midCells.length); i++) roomBarrierCells.add(midCells[i]);
 
   for (const cell of route) {
-    if (cell.index === 0 || cell.index === N - 1) { cell.template = cell.index === 0 ? 'START' : 'FINISH'; continue; }
+    if (cell.index <= 1 || cell.index === N - 1) { cell.template = cell.index <= 1 ? 'STALLS' : 'FINISH'; continue; }
     const ctx = createCellContext(cell, trng, t, intensity);
     if (cell.index === weaponIndex) {
       cell.template = 'POWERUP_ROOM';
@@ -192,13 +208,24 @@ export function buildLevel(seed, cfg, attempt) {
   }
   if (cfg.weaponEnabled && !weapon) return { ok: false, reason: 'weapon could not be placed' };
 
-  // Colour gates: a single solid block filling the whole doorway.
+  // Colour gates: a doorway filled with a column of same-colour bricks; each
+  // brick breaks on its own (a broken brick opens a racer-sized hole).
   for (const di of gateDoors) {
     const d = doors[di];
     const color = gateColor.get(di);
-    if (d.orient === 'h') barriers.push(makeBarrier(d.a, d.pos - GATE_T / 2, d.w, GATE_T, color, 1, 'gate'));
-    else barriers.push(makeBarrier(d.pos - GATE_T / 2, d.a, GATE_T, d.w, color, 1, 'gate'));
+    const k = Math.max(2, Math.round(d.w / 22));
+    const seg = d.w / k;
+    for (let s = 0; s < k; s++) {
+      const a = d.a + s * seg;
+      if (d.orient === 'h') barriers.push(makeBarrier(a, d.pos - GATE_T / 2, seg, GATE_T, color, 1, 'gate'));
+      else barriers.push(makeBarrier(d.pos - GATE_T / 2, a, GATE_T, seg, color, 1, 'gate'));
+    }
   }
+
+  // Starting stalls.
+  const stallParts = buildStalls(stall, stallColors, rng.fork('stall-geo'), t);
+  walls.push(...stallParts.walls);
+  barriers.push(...stallParts.barriers);
 
   // Final neutral gate before the finish room.
   const fd = doors[finalDoor];
@@ -235,37 +262,29 @@ export function buildLevel(seed, cfg, attempt) {
   const mrng = rng.fork('mutate');
   for (const b of bumpers) { b.x += mrng.range(-1.5, 1.5); b.y += mrng.range(-1.5, 1.5); b.r = Math.max(5.5, b.r + mrng.range(-0.8, 0.8)); }
 
-  const startCell = route[0];
-  const startPoint = { x: startCell.x + startCell.w / 2, y: startCell.y + startCell.h / 2 };
+  const startPoint = { x: stallParts.spawns[0].x, y: stallParts.spawns[0].y };
 
   const level = {
     ok: true, seed, attempt, config: { ...cfg }, style,
     width, height, rows, cols, grid: { ...L, rows },
     route, doors, walls, bumpers, barriers, weapon, finish, startPoint,
     gateDoors: [...gateDoors], finalDoor, weaponIndex, spawns: [], field: null, params: null,
+    stallRect: stall.dir > 0
+      ? { x: stall.xL, y: stall.y0, w: stall.exit.x - stall.xL, h: stall.y1 - stall.y0 }
+      : { x: stall.exit.x + stall.exit.w, y: stall.y0, w: stall.xR - stall.exit.x - stall.exit.w, h: stall.y1 - stall.y0 },
+    dangerSources: stallParts.dangerSources, stall: { ...stallColors, bricksTop: stallParts.bricksTop },
   };
 
   const field = buildCourseField(level, L.contestantSize / 2);
   if (!field.ok) return { ok: false, reason: field.reason };
   level.field = field;
 
-  // Fair spawn: 2x2 formation, colours randomly assigned to slots, heading
-  // roughly down the course with seeded variation.
+  // Spawns: one racer per stall lane (lane order is part of the puzzle).
   const srng = rng.fork('spawn');
-  const slots = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
-  const order = srng.shuffle(COLOR_IDS.slice());
-  const fiS = field.idxAt(startPoint.x, startPoint.y);
-  const base = Math.atan2(field.flowY[fiS], field.flowX[fiS]);
-  level.spawns = order.map((id, i) => {
-    const sp = PHYSICS.baseSpeed * cfg.contestantSpeed * (1 + srng.range(-PHYSICS.speedVariation, PHYSICS.speedVariation));
-    return {
-      id,
-      x: startPoint.x + slots[i][0] * 13,
-      y: startPoint.y + slots[i][1] * 13,
-      angle: base + srng.range(-0.75, 0.75),
-      speed: sp,
-    };
-  });
+  level.spawns = stallParts.spawns.map((sp) => ({
+    ...sp,
+    speed: PHYSICS.baseSpeed * cfg.contestantSpeed * (1 + srng.range(-PHYSICS.speedVariation, PHYSICS.speedVariation)),
+  }));
 
   // Dynamic balancing of the purple schedule: longer routes get a slightly
   // slower field so a good run can still escape.

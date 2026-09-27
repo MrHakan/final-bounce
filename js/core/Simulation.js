@@ -52,6 +52,7 @@ export class Simulation {
     this.samples = [];  // coarse progress samples for scoring
     this.minDangerGapByLate = {};
     this.lastNx = 0; this.lastNy = 0;
+    this.stallRect = level.stallRect || null;
   }
 
   emit(type, data) {
@@ -108,7 +109,7 @@ export class Simulation {
     const f = this.field;
     const fi = f.idxAt(c.x, c.y);
     const fx = f.flowX[fi], fy = f.flowY[fi];
-    if (this.params.pull > 0 && (fx !== 0 || fy !== 0)) {
+    if (this.params.pull > 0 && (fx !== 0 || fy !== 0) && !this.inStall(c)) {
       const vl = Math.hypot(c.vx, c.vy) || 1;
       const dot = (c.vx * fx + c.vy * fy) / vl;
       if (dot < -0.2) {
@@ -128,6 +129,13 @@ export class Simulation {
       this.resolveStatic(c);
       if (!c.alive) return;
     }
+  }
+
+  // Inside the starting stalls racers move as pure billiards (no course bias),
+  // so they hit the bricks on both sides of their lane.
+  inStall(c) {
+    const r = this.stallRect;
+    return !!r && c.x >= r.x && c.x <= r.x + r.w && c.y >= r.y && c.y <= r.y + r.h;
   }
 
   normalize(c) {
@@ -208,7 +216,7 @@ export class Simulation {
   // toward the local course direction. Motion between bounces stays straight.
   bounceBias(c) {
     const b = this.params.bounceBias;
-    if (b <= 0) return;
+    if (b <= 0 || this.inStall(c)) return;
     const f = this.field;
     const i = f.idxAt(c.x, c.y);
     const fx = f.flowX[i], fy = f.flowY[i];

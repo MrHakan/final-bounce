@@ -259,11 +259,7 @@ export class Renderer {
         ctx.fillRect(b.x - 1, b.y - 1, b.w + 2, b.h + 2);
         ctx.fillStyle = def.color;
         ctx.fillRect(b.x, b.y, b.w, b.h);
-        // Inset line: reads as a block (not a racer) without decoration.
-        if (b.w > 5 && b.h > 5) {
-          ctx.strokeStyle = def.dark; ctx.lineWidth = 1;
-          ctx.strokeRect(b.x + 2.5, b.y + 2.5, b.w - 5, b.h - 5);
-        }
+        this.drawBricks(b);
       } else {
         const dmg = 1 - b.hp / b.maxHp;
         const hit = sim.tick - b.lastHitTick < 5;
@@ -271,9 +267,28 @@ export class Renderer {
         ctx.fillRect(b.x - 1, b.y - 1, b.w + 2, b.h + 2);
         ctx.fillStyle = hit ? PALETTE.greyLight : dmg > 0.6 ? PALETTE.greyDark : dmg > 0.2 ? '#838d9b' : PALETTE.grey;
         ctx.fillRect(b.x, b.y, b.w, b.h);
+        this.drawBricks(b);
         if (dmg > 0) this.drawDamage(b, dmg);
       }
     }
+  }
+
+  // Brick joints: horizontal courses every ~9px with staggered vertical
+  // joints, so breakable blocks read as brickwork (and never as racers).
+  drawBricks(b) {
+    const { ctx } = this;
+    const course = b.h > 12 ? b.h / Math.max(1, Math.round(b.h / 9)) : b.h;
+    const rows = Math.max(1, Math.round(b.h / course));
+    ctx.strokeStyle = 'rgba(22,23,27,0.6)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    for (let i = 0; i < rows; i++) {
+      const y0 = b.y + i * course, y1 = y0 + course;
+      if (i > 0) { ctx.moveTo(b.x + 1.5, y0); ctx.lineTo(b.x + b.w - 1.5, y0); }
+      const joints = b.w >= 18 ? (i % 2 ? [0.25, 0.75] : [0.5]) : (i % 2 ? [] : [0.5]);
+      for (const j of joints) { ctx.moveTo(b.x + b.w * j, y0 + 1.5); ctx.lineTo(b.x + b.w * j, y1 - 1.5); }
+    }
+    ctx.stroke();
   }
 
   // Cracks + missing corners, deterministic per block id. No health bars.

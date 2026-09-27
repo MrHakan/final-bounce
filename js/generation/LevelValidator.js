@@ -22,6 +22,7 @@ export function validateStructure(level) {
   if (level.weapon && !isFinite(f.distAt(level.weapon.x, level.weapon.y))) problems.push('weapon unreachable');
   // Every door must be passable (door centre reachable in configuration space).
   for (const d of level.doors) {
+    if (d.merged) continue;
     const mid = (d.a + d.b) / 2;
     const [x, y] = d.orient === 'h' ? [mid, d.pos] : [d.pos, mid];
     if (!isFinite(f.distAt(x, y))) problems.push(`door ${d.index} blocked`);
@@ -32,7 +33,7 @@ export function validateStructure(level) {
   for (const b of finals) if (!isFinite(f.distAt(b.x + b.w / 2, b.y + b.h / 2))) { problems.push('final gate unreachable'); break; }
   // Puzzle rule: every colour owns at least one gate. (A dead colour's gates
   // turn neutral in the simulation, so this can never softlock.)
-  const gateColors = new Set(level.barriers.filter((b) => b.role === 'gate').map((b) => b.color));
+  const gateColors = new Set(level.barriers.filter((b) => b.role === 'gate' || b.role === 'stall').map((b) => b.color));
   for (const id of COLOR_IDS) if (!gateColors.has(id)) problems.push(`no ${id} gate`);
   // Geometry sanity: nothing outside the world, no degenerate pieces.
   for (const w of level.walls) {

@@ -183,10 +183,23 @@ export function buildCourseField(level, radius) {
       if (distF[i] > far) far = distF[i];
     }
   }
-  const sources = startTiles.filter((i) => distF[i] >= far - 10);
+  let sources = startTiles.filter((i) => distF[i] >= far - 10);
+  if (level.dangerSources) {
+    // Explicit origins (e.g. the back of every starting stall).
+    sources = [];
+    for (const r of level.dangerSources) {
+      for (let y = Math.floor(r.y / TILE); y <= Math.floor((r.y + r.h) / TILE); y++) {
+        for (let x = Math.floor(r.x / TILE); x <= Math.floor((r.x + r.w) / TILE); x++) {
+          const i = y * cols + x;
+          if (x >= 0 && y >= 0 && x < cols && y < rows && free[i] && isFinite(distF[i])) sources.push(i);
+        }
+      }
+    }
+  }
   if (!sources.length) return { ok: false, reason: 'start room unreachable' };
   const distS = dijkstra(free, cols, rows, sources);
-  let totalLength = distF[sources[0]];
+  let totalLength = 0;
+  for (const i of sources) if (distF[i] > totalLength) totalLength = distF[i];
   // Reachable-area check: count free tiles that the start cannot reach.
   let freeCount = 0, unreachable = 0;
   for (let i = 0; i < n; i++) if (free[i]) { freeCount++; if (!isFinite(distS[i])) unreachable++; }

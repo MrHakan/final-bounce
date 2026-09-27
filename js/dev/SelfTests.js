@@ -9,6 +9,7 @@ import { LAYOUT, DT, resolveRaceConfig } from '../config/presets.js';
 import { makeWall } from '../entities/Wall.js';
 import { makeBarrier } from '../entities/Barrier.js';
 import { recordingSupport } from '../recording/Recorder.js';
+import { stallRounds } from '../generation/StartStalls.js';
 
 // Synthetic single-room arena for rule tests.
 export function makeArena({ w = 300, h = 300, walls = [], barriers = [], bumpers = [], spawns, finish, weapon = null, params = {} } = {}) {
@@ -178,10 +179,23 @@ export const TESTS = [
     }
     return 'block never broke';
   }],
+  ['starting stalls are solvable and chained (every racer needs another)', () => {
+    for (let i = 0; i < 40; i++) {
+      const l = generateLevel(seedFromIndex('STALL', i), resolveRaceConfig('medium', { validateRace: false })).level;
+      const { lanes, bricks } = l.stall;
+      const rounds = stallRounds(lanes, bricks);
+      if (rounds < 2) return `seed ${i}: rounds=${rounds}`;
+      if (bricks[3] === lanes[3]) return `seed ${i}: exit brick belongs to its neighbour`;
+      if (l.barriers.filter((b) => b.role === 'stall').length !== 12) return `seed ${i}: expected 12 stall bricks`;
+      if (new Set(l.spawns.map((sp) => Math.round(sp.x))).size !== 4) return `seed ${i}: racers not in separate lanes`;
+    }
+    // The example from the reference: RED BLUE YELLOW GREEN lanes, bricks Y B G R.
+    return stallRounds(['red', 'blue', 'yellow', 'green'], ['yellow', 'blue', 'green', 'red']) === 3 || 'reference stall not solved in 3 rounds';
+  }],
   ['every course has a gate of every colour', () => {
     for (const p of ['short', 'medium', 'chaos']) for (let i = 0; i < 15; i++) {
       const l = generateLevel(seedFromIndex('GATES' + p, i), resolveRaceConfig(p, { validateRace: false })).level;
-      const colors = new Set(l.barriers.filter((b) => b.role === 'gate').map((b) => b.color));
+      const colors = new Set(l.barriers.filter((b) => b.role === 'gate' || b.role === 'stall').map((b) => b.color));
       if (colors.size < 4) return `${p} seed ${i}: gate colours ${[...colors].join(',')}`;
     }
     return true;

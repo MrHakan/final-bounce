@@ -132,13 +132,19 @@ differently in another browser family.
   racers never ping-pong forever between parallel walls. If a racer stays inside
   a 2.5-body box for 4 s, its velocity is rotated a deterministic amount. It is
   never teleported.
-- **Colour gates (puzzle).** Doorways between sections are closed by solid,
-  single-colour gates. Every course has at least one gate of each of the four
-  colours, so every racer needs the others to open the way. Only the matching
-  colour can break a gate or colour block. Every contact is still a collision,
-  so the racer bounces back even when it breaks its own block. When a colour is
-  eliminated, its blocks turn into 1-HP grey blocks, so a dead colour can never
-  softlock the course.
+- **Starting stalls (puzzle).** Every race starts with the four racers
+  locked in their own narrow lanes. The lanes are separated by columns of
+  coloured bricks; the last column opens onto the exit lane. Only the matching
+  colour can break a brick, and each brick in a column breaks on its own. The
+  brick colours are chosen by a small solver so the stall is always solvable,
+  always chained, and never lets the racer beside the exit leave on its own.
+  Example: BLUE opens the way for YELLOW, YELLOW frees RED, and nobody leaves
+  until RED opens the exit. The purple rises from the back of every lane.
+- **Colour gates.** Some doorways further down the course are closed by
+  columns of single-colour bricks.
+- **Every contact is a collision.** A racer bounces back even when it breaks
+  a block of its own colour. When a colour is eliminated, its blocks turn into
+  1-HP grey blocks, so a dead colour can never softlock the course.
 - **Final grey wall.** Neutral blocks in front of the finish room. Any racer
   damages them (1–4 HP, cracks show the damage).
 - **Blade.** The first living racer to touch it carries it. An armed racer
@@ -182,8 +188,9 @@ Maps are *random but structured*:
    `FUNNEL`, `CORNER`, `POWERUP_ROOM`, plus colour gates and the final gate.
    Every piece goes through a fit check that keeps door approaches clear and
    forbids gaps narrower than a racer.
-4. **Placement**: single-colour gates in doorways (at least one per colour,
-   spread along the route), the blade in a contested
+4. **Placement**: the starting stalls in the first two cells (lane order and
+   brick colours from the stall solver), single-colour brick gates in some
+   later doorways, the blade in a contested
    room at 30–55 % of the route, free-standing colour blocks, 2–6 grey final
    blocks in 1–2 layers, the finish zone, and a 2×2 spawn with colours
    shuffled across the slots.
@@ -252,8 +259,8 @@ an app. Everything on the canvas has a gameplay job:
   translucent trail (drawn under the walls).
 - **Purple**: solid dark purple on the 4 px tile grid (stepped edge kept on
   purpose), with a one-band lighter leading edge. No glow, fog or animation.
-- **Blocks**: colour barriers are solid blocks with a dark outline and an inset
-  line. Grey final blocks are blue-grey and show damage through cracks, chipped
+- **Blocks**: colour barriers are solid blocks with a dark outline and simple
+  brick joints. Grey final blocks are blue-grey and show damage through cracks, chipped
   corners and darkening. There are no health bars.
 - **Blade**: a tiny flat icon lying on the floor. When carried, it points along
   the carrier's direction of travel.
@@ -271,8 +278,8 @@ an app. Everything on the canvas has a gameplay job:
 - **Composition**: the course is top-aligned under the HUD and never scaled
   above 1.3×. Courses using less than ~80 % of the frame width sit on the left
   and leave negative space on the right, where Instagram's buttons are.
-- **Long courses**: a close follow camera (up to 1.6×) tracks the main group
-  of racers and zooms out only as far as needed to keep that group in view.
+- **Long courses**: a close follow camera (2.4×, never further than 1.7×)
+  tracks the main group of racers.
   When a racer breaks away and leaves the screen, a circular inset camera
   appears in the lower-right corner and follows it until it rejoins.
 - **Effects**: small square fragments (3–8) for breaks and eliminations, and a

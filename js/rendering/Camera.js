@@ -1,7 +1,7 @@
 // World -> screen mapping (presentation only; never touches the simulation).
 //
 //  static        : the whole course, top-aligned under the HUD strip.
-//  follow-pack   : a close camera (up to 1.6x) on the main group of racers,
+//  follow-pack   : a close camera (1.7x-2.4x) on the main group of racers,
 //                  zooming out a little when the group spreads. A racer that
 //                  breaks away from the group gets its own circular inset
 //                  camera in the lower-right corner (see `pip`).
@@ -14,9 +14,10 @@ import { VIEW_W, VIEW_H } from '../config/presets.js';
 export const FRAME = { x: 22, y: 118, w: VIEW_W - 22 - 40, h: VIEW_H - 118 - 132, maxZoom: 1.3 };
 
 // Circular inset camera (screen space, logical px).
-export const PIP = { x: VIEW_W - 96, y: VIEW_H - 236, r: 68, zoom: 1.7 };
+export const PIP = { x: VIEW_W - 96, y: VIEW_H - 236, r: 68, zoom: 2.2 };
 
-const FOLLOW_ZOOM = 1.6;
+const FOLLOW_ZOOM = 2.4;   // close follow camera
+const FOLLOW_MIN = 1.7;    // never back off further than this; stragglers go to the inset
 const GROUP_DIST = 130;   // racers closer than this (world px, chained) form a group
 
 // Asymmetric composition: a course that uses less than ~80% of the frame
@@ -113,7 +114,7 @@ export class Camera {
         for (const c of m) { x0 = Math.min(x0, c.x); x1 = Math.max(x1, c.x); y0 = Math.min(y0, c.y); y1 = Math.max(y1, c.y); }
         // Close camera; back off only as far as needed to keep the group in view.
         const need = Math.min(FRAME.w * 0.7 / Math.max(1, x1 - x0), FRAME.h * 0.65 / Math.max(1, y1 - y0));
-        const zt = Math.max(this.fitZoomX(), Math.min(FOLLOW_ZOOM, need));
+        const zt = Math.max(FOLLOW_MIN, Math.min(FOLLOW_ZOOM, need));
         this.zoom += (zt - this.zoom) * (snap || k === 1 ? 1 : 1 - Math.exp(-1.5 * dt));
         const z = this.zoom;
         const tx = (x0 + x1) / 2, ty = (y0 + y1) / 2;

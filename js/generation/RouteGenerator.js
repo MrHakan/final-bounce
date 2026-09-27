@@ -59,7 +59,9 @@ function orderedCandidates(rng, style, cols, rows, visited, cell, prevDir) {
   return out;
 }
 
-export function generateRoute(rng, cols, rows, minLen, maxLen, style) {
+// firstHorizontal: the first step is E/W so cells 0+1 can form one wide
+// start room (the starting stalls).
+export function generateRoute(rng, cols, rows, minLen, maxLen, style, firstHorizontal = false) {
   for (let attempt = 0; attempt < 30; attempt++) {
     const target = rng.int(minLen, Math.min(maxLen, cols * rows));
     const startRow = rng.chance(0.8) ? 0 : rng.int(0, Math.max(0, Math.floor(rows / 3)));
@@ -67,7 +69,8 @@ export function generateRoute(rng, cols, rows, minLen, maxLen, style) {
     const visited = new Uint8Array(cols * rows);
     const path = [start];
     visited[start.r * cols + start.c] = 1;
-    const stack = [orderedCandidates(rng, style, cols, rows, visited, start, null)];
+    const first = orderedCandidates(rng, style, cols, rows, visited, start, null);
+    const stack = [firstHorizontal ? first.filter((o) => o.dir === 'E' || o.dir === 'W') : first];
     let budget = 2500;
     while (path.length && budget-- > 0) {
       if (path.length === target) {

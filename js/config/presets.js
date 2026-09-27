@@ -38,29 +38,30 @@ export const MAP_LENGTHS = {
 };
 
 export const COMPLEXITY = {
-  low:    { route: [7, 9],   obstacle: 0.55, openDoor: 0.18 },
-  medium: { route: [9, 12],  obstacle: 0.8,  openDoor: 0.12 },
-  high:   { route: [12, 15], obstacle: 1.0,  openDoor: 0.08 },
+  low:    { route: [7, 8],   obstacle: 0.55, openDoor: 0.18 },
+  medium: { route: [8, 11],  obstacle: 0.8,  openDoor: 0.12 },
+  high:   { route: [10, 13], obstacle: 1.0,  openDoor: 0.08 },
 };
 export const LONG_COMPLEXITY = {
-  low:    { route: [11, 14] },
-  medium: { route: [14, 18] },
-  high:   { route: [18, 23] },
+  low:    { route: [10, 13] },
+  medium: { route: [13, 17] },
+  high:   { route: [17, 21] },
 };
 
 export const BARRIER_DENSITY = {
-  low:    { gates: [4, 4], roomBarriers: [0, 1] },   // every colour always gets a gate
-  medium: { gates: [4, 5], roomBarriers: [1, 2] },
-  high:   { gates: [5, 6], roomBarriers: [2, 3] },
+  low:    { gates: [1, 2], roomBarriers: [0, 1] },   // + the starting stalls (all colours)
+  medium: { gates: [2, 3], roomBarriers: [1, 2] },
+  high:   { gates: [3, 4], roomBarriers: [2, 3] },
 };
 
 // Purple pursuit, in geodesic course px. rate(t) = v0 + accel * (t - delay),
 // plus a catch-up term when the rearmost survivor gets too far ahead.
 export const DIFFICULTIES = {
-  easy:   { v0: 10, accel: 0.4,  delay: 6.0, catchGap: 300, catchK: 0.2,  maxRate: 30 },
-  normal: { v0: 12, accel: 0.55, delay: 5.0, catchGap: 260, catchK: 0.25, maxRate: 34 },
-  hard:   { v0: 14, accel: 0.7,  delay: 4.5, catchGap: 220, catchK: 0.3,  maxRate: 40 },
-  chaos:  { v0: 16, accel: 0.85, delay: 4.0, catchGap: 190, catchK: 0.35, maxRate: 46 },
+  // The purple waits for the starting-stall puzzle, then rises and accelerates.
+  easy:   { v0: 5, accel: 0.55, delay: 9.0, catchGap: 300, catchK: 0.2,  maxRate: 30 },
+  normal: { v0: 6, accel: 0.7,  delay: 8.0, catchGap: 260, catchK: 0.25, maxRate: 34 },
+  hard:   { v0: 7, accel: 0.85, delay: 7.0, catchGap: 220, catchK: 0.3,  maxRate: 40 },
+  chaos:  { v0: 8, accel: 1.0,  delay: 6.5, catchGap: 190, catchK: 0.35, maxRate: 46 },
 };
 
 export const RACE_DEFAULTS = {
@@ -94,8 +95,8 @@ export const PHYSICS = {
 
 export const PRESETS = {
   short: {
-    label: 'Short reel (15-25s)',
-    race: { complexity: 'low', difficulty: 'normal', barrierDensity: 'low', minDuration: 12, maxDuration: 27 },
+    label: 'Short reel (20-30s)',
+    race: { complexity: 'low', difficulty: 'normal', barrierDensity: 'low', minDuration: 14, maxDuration: 31 },
   },
   medium: {
     label: 'Medium reel (25-40s)',
