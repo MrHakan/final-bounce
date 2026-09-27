@@ -1,0 +1,14 @@
+{
+  "name": "final-bounce",
+  "version": "1.0.0",
+  "description": "Procedural survival race simulator and Instagram Reels generator. Static site, no build step.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes http-server -c-1 -p 8080 .",
+    "test": "node tests/run-tests.mjs",
+    "stress": "node tests/stress.mjs medium 1000"
+  },
+  "engines": { "node": ">=18" },
+  "license": "GPL-3.0-only"
+}

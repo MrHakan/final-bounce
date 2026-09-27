@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Viz</title>
+<style>body{margin:0;background:#222}canvas{width:540px;height:960px;display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+import { generateLevel, buildLevel } from '../js/generation/LevelGenerator.js';
+import { resolveRaceConfig, VIEW_DEFAULTS } from '../js/config/presets.js';
+import { Simulation } from '../js/core/Simulation.js';
+import { Renderer } from '../js/rendering/Renderer.js';
+import { Camera } from '../js/rendering/Camera.js';
+const q = new URLSearchParams(location.search);
+const seed = q.get('seed') || 'ABC123';
+const cfg = resolveRaceConfig(q.get('preset') || 'medium', JSON.parse(q.get('o') || '{}'));
+const g = q.has('attempt') ? { level: buildLevel(seed, cfg, +q.get('attempt')), attempts: 1 } : generateLevel(seed, cfg, { forceTestRun: true });
+const r = new Renderer(document.getElementById('c'));
+r.setLevel(g.level);
+const sim = new Simulation(g.level);
+const t = +(q.get('t') || 0);
+const cam = new Camera(); cam.setWorld(g.level.width, g.level.height);
+// accumulate trails over last frames
+const view = { ...VIEW_DEFAULTS, debug: q.has('debug') };
+const tr = +(q.get('trail') || 0.3);
+const tc = document.createElement('canvas'); tc.width = 540; tc.height = g.level.height; const tctx = tc.getContext('2d');
+while (sim.time < t && !sim.ended) { sim.step(); if (t - sim.time < tr) for (const c of sim.contestants) if (c.alive) { tctx.fillStyle = c.color; tctx.globalAlpha = 0.35; tctx.fillRect(c.x - 1, c.y - 1, 2, 2); } }
+cam.update(sim, 'auto', 0, true);
+r.draw({ sim, alpha: 1, camera: cam, view, particles: null, pres: null, debug: view.debug ? { seed, attempts: g.attempts, score: g.score && g.score.score } : null });
+r.ctx.setTransform(2,0,0,2,-cam.x*2,-cam.y*2); r.ctx.drawImage(tc,0,0); window.__info = { attempts: g.attempts, accepted: g.accepted, result: g.result && { winner: g.result.winner, duration: g.result.duration }, rejected: g.rejected };
+window.__done = true;
+</script></body></html>

@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Final Bounce — Survival Race Simulator</title>
+  <meta name="description" content="Seeded procedural physics races for vertical video. Generate a course, watch four squares try to outrun the purple, record a 9:16 Reel.">
+  <meta name="theme-color" content="#1c1e22">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-marks" aria-hidden="true"><i class="m-red"></i><i class="m-blue"></i><i class="m-yellow"></i><i class="m-green"></i></span>
+      <span class="brand-name">FINAL BOUNCE</span>
+      <span class="brand-sub">survival race simulator</span>
+    </div>
+    <div class="topbar-right">
+      <span id="stateBadge" class="badge" title="Game state">IDLE</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="stage" aria-label="Simulation preview">
+      <div class="viewport" id="viewport">
+        <canvas id="race" width="1080" height="1920" aria-label="Race simulation, 9:16"></canvas>
+        <div class="busy" id="busy" hidden>
+          <div class="busy-box"><div class="busy-title" id="busyTitle">Working…</div><div class="busy-bar"><i id="busyBar"></i></div><div class="busy-text" id="busyText"></div><button id="busyCancel" type="button" class="small">Cancel</button></div>
+        </div>
+        <div class="rec-dot" id="recDot" hidden>REC</div>
+      </div>
+      <div class="transport">
+        <button id="btnPlay" type="button" class="primary wide" title="Space">Play</button>
+        <button id="btnRestart" type="button" title="R">Restart</button>
+        <button id="btnReplay" type="button" title="Replay the same race">Replay</button>
+        <button id="btnNew" type="button" title="N — new random seed">New seed</button>
+        <div class="seg" role="group" aria-label="Simulation speed" id="speedGroup">
+          <button type="button" data-speed="0.25">¼×</button>
+          <button type="button" data-speed="0.5">½×</button>
+          <button type="button" data-speed="1" class="on">1×</button>
+          <button type="button" data-speed="2">2×</button>
+          <button type="button" data-speed="4">4×</button>
+          <button type="button" data-speed="8">8×</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel" id="panel" aria-label="Creator controls">
+      <details open>
+        <summary>Seed &amp; course</summary>
+        <div class="row">
+          <label class="grow">Seed
+            <input id="seedInput" type="text" spellcheck="false" autocomplete="off" maxlength="32" class="mono">
+          </label>
+          <button id="btnLoadSeed" type="button" class="primary">Load</button>
+        </div>
+        <div class="row">
+          <button id="btnRandomSeed" type="button">Random seed</button>
+          <button id="btnCopySeed" type="button">Copy seed</button>
+          <button id="btnCopyLink" type="button">Copy link</button>
+        </div>
+        <label>Preset
+          <select id="presetSelect"></select>
+        </label>
+        <div class="row">
+          <button id="btnRegenerate" type="button" title="Rebuild the course from the current seed and settings">Regenerate same seed</button>
+        </div>
+        <p class="meta" id="genMeta">—</p>
+      </details>
+
+      <details open>
+        <summary>Generate interesting race</summary>
+        <p class="hint">Simulates candidate seeds headless, scores them for drama and picks the best.</p>
+        <div class="grid2">
+          <label>Min score <output id="minScoreOut">65</output>
+            <input id="minScore" type="range" min="30" max="95" step="5" value="65">
+          </label>
+          <label>Max candidates <output id="maxCandOut">50</output>
+            <input id="maxCand" type="range" min="5" max="100" step="5" value="50">
+          </label>
+        </div>
+        <div class="row">
+          <button id="btnInteresting" type="button" class="primary" title="G">Generate interesting race</button>
+        </div>
+        <p class="meta" id="findMeta"></p>
+      </details>
+
+      <details>
+        <summary>Race settings</summary>
+        <p class="hint">Part of the replay key. Applied when the course is (re)generated.</p>
+        <div class="grid2">
+          <label>Difficulty
+            <select id="cfgDifficulty">
+              <option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option><option value="chaos">Chaos</option>
+            </select>
+          </label>
+          <label>Race mode
+            <select id="cfgRaceMode"><option value="first">First wins</option><option value="survivors">Survivors finish</option></select>
+          </label>
+          <label>Map complexity
+            <select id="cfgComplexity"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+          </label>
+          <label>Barrier density
+            <select id="cfgBarrierDensity"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+          </label>
+          <label>Map length
+            <select id="cfgMapLength"><option value="standard">Fits frame</option><option value="long">Long (follow cam)</option></select>
+          </label>
+          <label>Final wall HP
+            <select id="cfgFinalHp"><option value="0">Auto</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
+          </label>
+          <label>Purple speed <output id="cfgDangerSpeedOut"></output>
+            <input id="cfgDangerSpeed" type="range" min="0.5" max="1.6" step="0.05">
+          </label>
+          <label>Contestant speed <output id="cfgContestantSpeedOut"></output>
+            <input id="cfgContestantSpeed" type="range" min="0.8" max="1.3" step="0.02">
+          </label>
+          <label>Course pull <output id="cfgCoursePullOut"></output>
+            <input id="cfgCoursePull" type="range" min="0" max="2" step="0.05">
+          </label>
+          <label>Blade kills
+            <select id="cfgWeaponKills"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="0">Unlimited</option></select>
+          </label>
+        </div>
+        <label class="check"><input id="cfgWeaponEnabled" type="checkbox"> Blade power-up</label>
+        <label class="check"><input id="cfgValidateRace" type="checkbox"> Reject bad races (test-run each layout)</label>
+        <div class="row">
+          <button id="btnApply" type="button" class="primary">Apply &amp; regenerate</button>
+        </div>
+      </details>
+
+      <details>
+        <summary>View</summary>
+        <p class="hint">Presentation only — never changes the race.</p>
+        <label>Camera
+          <select id="viewCamera">
+            <option value="auto">Auto</option><option value="static">Static (whole course)</option>
+            <option value="follow-pack">Follow pack</option><option value="follow-leader">Follow leader</option>
+          </select>
+        </label>
+        <div class="checks">
+          <label class="check"><input type="checkbox" data-view="particles"> Particles</label>
+          <label class="check"><input type="checkbox" data-view="trails"> Trails</label>
+          <label class="check"><input type="checkbox" data-view="shake"> Camera shake</label>
+          <label class="check"><input type="checkbox" data-view="textOverlays"> Text overlays</label>
+          <label class="check"><input type="checkbox" data-view="hud"> HUD</label>
+          <label class="check"><input type="checkbox" data-view="intro"> Intro</label>
+          <label class="check"><input type="checkbox" data-view="countdown"> Countdown</label>
+          <label class="check"><input type="checkbox" data-view="deathMarkers"> Death markers</label>
+          <label class="check"><input type="checkbox" data-view="safeArea"> Safe-area guide</label>
+          <label class="check"><input type="checkbox" data-view="debug"> Debug view</label>
+        </div>
+      </details>
+
+      <details>
+        <summary>Sound</summary>
+        <div class="grid2">
+          <label>Master <output id="volMasterOut">80</output>
+            <input id="volMaster" type="range" min="0" max="1" step="0.05" value="0.8">
+          </label>
+          <label>Effects <output id="volFxOut">90</output>
+            <input id="volFx" type="range" min="0" max="1" step="0.05" value="0.9">
+          </label>
+        </div>
+        <div class="row">
+          <label class="check"><input id="mute" type="checkbox"> Mute</label>
+          <button id="btnTestSound" type="button" class="small">Test sound</button>
+        </div>
+        <p class="meta" id="audioMeta">Audio starts after your first click (browser autoplay rules).</p>
+      </details>
+
+      <details open>
+        <summary>Record Reel</summary>
+        <p class="meta" id="recSupport"></p>
+        <div class="grid2">
+          <label>Frame rate
+            <select id="recFps"><option value="60">60 fps</option><option value="30">30 fps</option></select>
+          </label>
+          <label>Quality
+            <select id="recBitrate"><option value="16000000">High (16 Mbps)</option><option value="10000000" selected>Standard (10 Mbps)</option><option value="6000000">Light (6 Mbps)</option></select>
+          </label>
+        </div>
+        <label>Format
+          <select id="recFormat"></select>
+        </label>
+        <label class="check"><input id="recAutoDownload" type="checkbox"> Download automatically when finished</label>
+        <div class="row">
+          <button id="btnRecord" type="button" class="primary rec">Record race</button>
+          <button id="btnStopRec" type="button" disabled>Stop</button>
+        </div>
+        <div class="row">
+          <button id="btnAutoRecord" type="button" title="Generate an interesting race, then record it">Auto generate + record</button>
+        </div>
+        <div class="export" id="exportBox" hidden>
+          <p class="meta" id="exportMeta"></p>
+          <div class="row">
+            <button id="btnDownload" type="button" class="primary">Download video</button>
+            <button id="btnMp4" type="button" hidden>Convert to MP4</button>
+          </div>
+          <div class="busy-bar inline" id="mp4Bar" hidden><i></i></div>
+          <p class="meta" id="mp4Meta"></p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Cover image</summary>
+        <div class="grid2">
+          <label>Moment
+            <select id="coverMoment"><option value="current">Current frame</option><option value="start">Start</option><option value="middle">Middle</option><option value="finish">Finish</option></select>
+          </label>
+          <label>Overlay text
+            <input id="coverText" type="text" value="WHO WILL WIN?" maxlength="28">
+          </label>
+        </div>
+        <label class="check"><input id="coverOverlay" type="checkbox" checked> Show overlay text</label>
+        <div class="row"><button id="btnCover" type="button">Capture cover (1080×1920 PNG)</button></div>
+      </details>
+
+      <details open>
+        <summary>Race report</summary>
+        <div id="stats" class="stats"><p class="meta">Play the race to see the report.</p></div>
+      </details>
+
+      <details>
+        <summary>Developer</summary>
+        <div class="row">
+          <button id="btnSelfTests" type="button">Run self-tests</button>
+          <button type="button" data-stress="100">testSeeds(100)</button>
+          <button type="button" data-stress="500">testSeeds(500)</button>
+          <button type="button" data-stress="1000">testSeeds(1000)</button>
+        </div>
+        <p class="hint">Stress tests use the current race settings. Also available in the console: <code>race.testSeeds(1000)</code>.</p>
+        <pre id="devOut" class="devout"></pre>
+      </details>
+
+      <p class="foot">Keys: <kbd>Space</kbd> play/pause · <kbd>R</kbd> restart · <kbd>N</kbd> new seed · <kbd>G</kbd> interesting race · <kbd>D</kbd> debug</p>
+    </aside>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <noscript><p class="noscript">This simulator needs JavaScript.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
