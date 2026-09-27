@@ -135,7 +135,7 @@ export const VIEW_DEFAULTS = {
   countdown: true,
   safeArea: false,
   debug: false,
-  deathMarkers: true,
+  deathMarkers: false,
   speed: 1,
 };
 

@@ -1,9 +1,9 @@
 /* Creator UI. Plain, readable, not "app store" shiny. The Reel itself is the canvas. */
 :root {
-  --bg: #17191c;
-  --panel: #202328;
-  --panel-2: #262a30;
-  --line: #353a42;
+  --bg: #15171c;
+  --panel: #1b1e24;
+  --panel-2: #23272e;
+  --line: #30353d;
   --text: #ebe8e1;
   --muted: #9aa0a8;
   --accent: #f5c518;
@@ -35,14 +35,14 @@ kbd { border: 1px solid var(--line); border-bottom-width: 2px; padding: 0 4px; b
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 16px;
   border-bottom: 1px solid var(--line);
-  background: #1c1e22;
+  background: var(--bg);
   position: sticky; top: 0; z-index: 5;
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand-marks { display: inline-flex; gap: 3px; }
 .brand-marks i { width: 10px; height: 10px; display: block; border: 1px solid #0d0e10; }
 .m-red { background: var(--red); } .m-blue { background: var(--blue); } .m-yellow { background: var(--yellow); } .m-green { background: var(--green); }
-.brand-name { font-weight: 900; letter-spacing: 0.06em; font-family: "Arial Black", Helvetica, Arial, sans-serif; }
+.brand-name { font-weight: 700; font-size: 19px; letter-spacing: 0.08em; font-family: "Barlow Condensed", "Arial Narrow", sans-serif; }
 .brand-sub { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .badge {
   font: 700 11px/1 ui-monospace, Menlo, Consolas, monospace;
@@ -68,9 +68,8 @@ kbd { border: 1px solid var(--line); border-bottom-width: 2px; padding: 0 4px; b
   aspect-ratio: 9 / 16;
   height: calc(100dvh - var(--topbar) - var(--transport) - 34px);
   max-width: 100%;
-  background: #6d7076;
-  outline: 1px solid #0c0d0f;
-  box-shadow: 0 0 0 6px #111215;
+  background: #15171c;
+  outline: 1px solid #2a2e36;
 }
 .viewport canvas { width: 100%; height: 100%; display: block; }
 
@@ -107,7 +106,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 details { border-bottom: 1px solid var(--line); padding: 8px 0 12px; }
 summary {
   cursor: pointer; list-style: none;
-  font-weight: 800; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
+  font: 700 14px/1.2 "Barlow Condensed", "Arial Narrow", sans-serif; letter-spacing: 0.1em; text-transform: uppercase;
   color: #d7d3ca; padding: 4px 0 6px;
 }
 summary::-webkit-details-marker { display: none; }
@@ -154,7 +153,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 .stats th, .stats td { text-align: left; padding: 4px 4px; border-bottom: 1px solid #2d3137; }
 .stats th { color: var(--muted); font-weight: 600; }
 .swatch { display: inline-block; width: 10px; height: 10px; border: 1px solid #0d0e10; margin-right: 6px; vertical-align: -1px; }
-.stats .winner { font-weight: 800; font-size: 15px; margin: 4px 0 8px; }
+.stats .winner { font: 700 20px/1.1 "Barlow Condensed", "Arial Narrow", sans-serif; letter-spacing: 0.06em; margin: 4px 0 8px; }
 .stats .score { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); margin: 8px 0; }
 .stats .score b { color: var(--text); }
 .log { max-height: 190px; overflow-y: auto; margin: 8px 0 0; padding: 0; list-style: none; font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; border-top: 1px solid #2d3137; }
@@ -184,3 +183,8 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 @media (max-width: 380px) {
   .grid2, .checks { grid-template-columns: 1fr; }
 }
+
+/* Bundled game fonts (OFL, see assets/fonts/OFL.txt). Used by the canvas HUD. */
+@font-face { font-family: "Barlow Condensed"; font-weight: 600; font-display: block; src: url("../assets/fonts/BarlowCondensed-600.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 700; font-display: block; src: url("../assets/fonts/BarlowCondensed-700.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 600; font-display: block; src: url("../assets/fonts/IBMPlexMono-600.woff2") format("woff2"); }

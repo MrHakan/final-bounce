@@ -5,7 +5,14 @@ import { VIEW_W, VIEW_H } from '../config/presets.js';
 
 // Screen area (logical px) the course is fitted into: below the HUD band,
 // above the caption zone, with side gutters.
-export const FRAME = { x: 16, y: 116, w: VIEW_W - 32, h: VIEW_H - 116 - 128, maxZoom: 1.5 };
+export const FRAME = { x: 22, y: 118, w: VIEW_W - 22 - 40, h: VIEW_H - 118 - 132, maxZoom: 1.3 };
+
+// Asymmetric composition: a course that uses less than ~80% of the frame
+// width hugs the left edge and leaves negative space on the right (where
+// Instagram's buttons live). Wide courses are centred.
+function frameLeft(drawnW) {
+  return drawnW < FRAME.w * 0.8 ? FRAME.x : FRAME.x + (FRAME.w - drawnW) / 2;
+}
 
 export class Camera {
   constructor() {
@@ -35,8 +42,8 @@ export class Camera {
     const b = this.bounds;
     const z = Math.min(FRAME.maxZoom, FRAME.w / b.w, FRAME.h / b.h);
     this.zoom = z;
-    this.x = b.x + b.w / 2 - (FRAME.x + FRAME.w / 2) / z;
-    this.y = b.y + b.h / 2 - (FRAME.y + FRAME.h / 2) / z;
+    this.x = b.x - frameLeft(b.w * z) / z;
+    this.y = b.y - FRAME.y / z; // top-aligned under the HUD strip
   }
 
   targetFor(sim, mode) {
@@ -70,7 +77,7 @@ export class Camera {
         const k = snap ? 1 : 1 - Math.exp(-2.6 * dt);
         this.y += (ty - this.y) * k;
       }
-      this.x = b.x + b.w / 2 - (FRAME.x + FRAME.w / 2) / z;
+      this.x = b.x - frameLeft(b.w * z) / z;
       this.y = Math.max(minY, Math.min(maxY, this.y));
     }
     // Shake decay.
@@ -82,7 +89,7 @@ export class Camera {
     } else { this.shakeAmp = 0; this.shakeX = 0; this.shakeY = 0; }
   }
 
-  shake(amount) { this.shakeAmp = Math.min(8, Math.max(this.shakeAmp, amount)); }
+  shake(amount) { this.shakeAmp = Math.min(4, Math.max(this.shakeAmp, amount)); }
 
   worldToScreen(x, y) { return { x: (x - this.x) * this.zoom + this.shakeX, y: (y - this.y) * this.zoom + this.shakeY }; }
 }

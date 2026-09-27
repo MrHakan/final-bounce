@@ -234,6 +234,43 @@ rendering, keeps the best, and stops at the target score or the candidate limit
 (default 50). It shows `Testing races… 18 / 50` and then the selected seed and
 its score.
 
+## Visual style
+
+The recorded view is meant to look like a small experimental physics game, not
+an app. Everything on the canvas has a gameplay job:
+
+- **Surround**: dark charcoal with an almost invisible diagonal hatch.
+- **Course**: pale cool-grey floor with a faint 24 px grid, cream walls with
+  thin charcoal outlines, flat bumpers. The finish is a flat checkerboard.
+- **Racers**: 12 px flat squares with a thin dark border and a short tapering
+  translucent trail (drawn under the walls).
+- **Purple**: solid dark purple on the 4 px tile grid (stepped edge kept on
+  purpose), with a one-band lighter leading edge. No glow, fog or animation.
+- **Blocks**: colour barriers are solid blocks with a dark outline and an inset
+  line. Grey final blocks are blue-grey and show damage through cracks, chipped
+  corners and darkening. There are no health bars.
+- **Blade**: a tiny flat icon lying on the floor. When carried, it points along
+  the carrier's direction of travel.
+- **HUD strip** (top, below Instagram's header): `SEED`/`TIME` labels over
+  values, four narrow status sections (dead = 35 % opacity with ×; blade icon
+  when armed; `#1` when finished), and a thin race timeline showing the purple
+  progress, racer markers and a checkered finish tick. The course scrolls
+  under the strip in follow mode.
+- **Messages**: one line of condensed text such as `YELLOW GOT THE BLADE`. The
+  name is in the racer's colour and the rest is off-white, with a thin dark
+  outline and no box. It fades in over ~120 ms and lasts ~1 s.
+- **Ending**: the scene dims and the final state stays visible. The text is
+  `YELLOW WINS`, then `TIME`, `KILLS` and `SEED` in small mono. It reveals over
+  300 ms. There are no banners, crowns or trophies.
+- **Composition**: the course is top-aligned under the HUD and never scaled
+  above 1.3×. Courses using less than ~80 % of the frame width sit on the left
+  and leave negative space on the right, where Instagram's buttons are.
+- **Effects**: small square fragments (3–8) for breaks and eliminations, and a
+  camera shake capped at 4 px. Sound carries most of the feedback.
+- **Type**: Barlow Condensed for labels and IBM Plex Mono for numbers. Both
+  are bundled in `assets/fonts/` (SIL OFL), so recordings look the same on
+  every machine. The page waits for them before drawing the first frame.
+
 ## Recording and export
 
 - The recorder captures **only the simulation canvas**
@@ -370,4 +407,5 @@ subscribe to events.
 ## License
 
 GPL-3.0 (see `LICENSE`). `vendor/ffmpeg/` is MIT-licensed (ffmpeg.wasm); see
-`vendor/ffmpeg/LICENSE`.
+`vendor/ffmpeg/LICENSE`. The fonts in `assets/fonts/` are under the SIL Open
+Font License 1.1; see `assets/fonts/OFL.txt`.

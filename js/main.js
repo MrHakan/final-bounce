@@ -13,6 +13,15 @@ import { testSeeds } from './dev/DevTools.js';
 import { runSelfTests } from './dev/SelfTests.js';
 import { findInterestingRace } from './generation/RaceFinder.js';
 
+// The canvas HUD uses bundled fonts; make sure they are ready before the first
+// frame so recordings never start with fallback glyphs.
+try {
+  await Promise.race([
+    Promise.all(['700 16px "Barlow Condensed"', '600 16px "Barlow Condensed"', '600 16px "IBM Plex Mono"'].map((f) => document.fonts.load(f))),
+    new Promise((r) => setTimeout(r, 2500)),
+  ]);
+} catch { /* fall back to system fonts */ }
+
 const bus = new EventBus();
 const canvas = document.getElementById('race');
 const game = new Game(canvas, bus);

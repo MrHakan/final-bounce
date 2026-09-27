@@ -1,0 +1,6 @@
+Barlow Condensed — Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
+IBM Plex Mono — Copyright © 2017 IBM Corp. with Reserved Font Name "Plex"
+
+Both fonts are licensed under the SIL Open Font License, Version 1.1.
+Full license text: https://openfontlicense.org/open-font-license-official-text/
+The files in this folder are the unmodified Latin subsets served by Google Fonts.
