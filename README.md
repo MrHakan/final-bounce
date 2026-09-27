@@ -71,18 +71,18 @@ GENERATE → WATCH → (REPLAY) → RECORD → DOWNLOAD → NEW SEED
 
 | Area | Controls |
 | --- | --- |
-| Transport | Play / Pause, Restart, Replay, New seed, speed ¼× ½× 1× 2× 4× 8× (8× is for testing; recording always runs at 1×) |
+| Transport | Play / Pause, Restart, Replay, New seed, Close cam toggle, speed ¼× ½× 1× 2× 4× 8× (8× is for testing; recording always runs at 1×) |
 | Seed & course | seed field, Load, Random seed, Copy seed, Copy link, preset, Regenerate same seed |
 | Interesting race | minimum score, maximum candidates, Generate interesting race |
 | Race settings | difficulty (Easy/Normal/Hard/Chaos), race mode (First wins / Survivors finish), map complexity, barrier density, map length, final wall HP, purple speed, contestant speed, course pull, blade kills, blade on/off, reject bad races |
-| View | camera (Auto/Static/Follow pack/Follow leader), particles, trails, camera shake, text overlays, HUD, intro, countdown, death markers, safe-area guide, debug view |
+| View | camera (Auto/Static/Follow pack/Follow leader), close camera, particles, trails, camera shake, text overlays, HUD, intro, countdown, death markers, safe-area guide, debug view |
 | Sound | master volume, effects volume, mute, test sound |
 | Record Reel | frame rate (60/30), quality, format (only formats this browser supports are listed), auto-download, Record race, Stop, Auto generate + record, Download video, Convert to MP4 |
 | Cover image | moment (current/start/middle/finish), overlay text, Capture cover (1080×1920 PNG) |
 | Race report | result table, entertainment score breakdown, live event log |
 | Developer | self-tests, `testSeeds(100/500/1000)` |
 
-Keyboard: `Space` play/pause · `R` restart · `N` new seed · `G` interesting race · `D` debug view.
+Keyboard: `Space` play/pause · `R` restart · `N` new seed · `G` interesting race · `D` debug view · `C` close camera.
 
 Presets: **Short reel** (aims for 15–25 s), **Medium reel** (25–40 s), **Chaos**,
 **Close race**, **Hard pursuit**, **Long course** (taller than the frame; the
@@ -278,8 +278,11 @@ an app. Everything on the canvas has a gameplay job:
 - **Composition**: the course is top-aligned under the HUD and never scaled
   above 1.3×. Courses using less than ~80 % of the frame width sit on the left
   and leave negative space on the right, where Instagram's buttons are.
-- **Long courses**: a close follow camera (2.4×, never further than 1.7×)
-  tracks the main group of racers.
+- **Close camera** (optional, on by default; `Close cam` button, View →
+  *Close camera*, or the `C` key): with the Auto camera, every course is
+  followed up close (2.4×, never further than 1.7×) on the main group of
+  racers. Switched off, courses that fit the frame are shown whole and long
+  courses get a wide follow camera.
   When a racer breaks away and leaves the screen, a circular inset camera
   appears in the lower-right corner and follows it until it rejoins.
 - **Effects**: small square fragments (3–8) for breaks and eliminations, and a

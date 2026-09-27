@@ -131,6 +131,7 @@ export class Game {
     this.completeSent = false;
     this.paused = false;
     this.camera.shakeAmp = 0;
+    this.camera.closeCam = this.view.closeCam;
     this.camera.update(this.sim, this.view.camera, 0, true);
     this.setState(GameState.GENERATED);
     this.bus.emit('race:reset', { seed: this.seed });
@@ -217,6 +218,7 @@ export class Game {
     this.particles.update(pdt);
     for (const c of this.callouts) c.age += dt;
     this.callouts = this.callouts.filter((c) => c.age < c.dur);
+    this.camera.closeCam = this.view.closeCam;
     if (this.sim) this.camera.update(this.sim, this.view.camera, dt);
   }
 
@@ -355,6 +357,7 @@ export class Game {
     }
     const cam = new Camera();
     cam.setWorld(this.level.width, this.level.height, courseBounds(this.level), this.level.config.mapLength === 'long');
+    cam.closeCam = this.view.closeCam;
     cam.update(sim, this.view.camera, 0, true);
     r.draw({
       sim, alpha: 1, camera: cam, view: { ...this.view, safeArea: false, debug: false, trails: false },

@@ -53,6 +53,7 @@ export class Camera {
     this.shakePhase = 0;
     this.worldW = VIEW_W; this.worldH = VIEW_H;
     this.pip = null; // { id, x, y, alpha }
+    this.closeCam = true;
   }
 
   // bounds: bounding box of the course.
@@ -65,11 +66,13 @@ export class Camera {
     this._init = false;
   }
 
+  // Auto: close follow camera when `closeCam` is on (any map). With it off,
+  // courses that fit are shown whole and long courses get a wide follow.
   resolveMode(pref) {
-    // Auto: show the whole course unless that would shrink it noticeably.
-    if (pref === 'auto' && this.longCourse) return 'follow-pack';
-    if (pref === 'auto') return Math.min(FRAME.w / this.bounds.w, FRAME.h / this.bounds.h) < 0.9 ? 'follow-pack' : 'static';
-    return pref;
+    if (pref !== 'auto') return pref;
+    if (this.closeCam) return 'follow-pack';
+    if (this.longCourse || Math.min(FRAME.w / this.bounds.w, FRAME.h / this.bounds.h) < 0.9) return 'follow-wide';
+    return 'static';
   }
 
   fitZoomX() { return Math.min(FRAME.maxZoom, FRAME.w / this.bounds.w); }
@@ -114,7 +117,7 @@ export class Camera {
         for (const c of m) { x0 = Math.min(x0, c.x); x1 = Math.max(x1, c.x); y0 = Math.min(y0, c.y); y1 = Math.max(y1, c.y); }
         // Close camera; back off only as far as needed to keep the group in view.
         const need = Math.min(FRAME.w * 0.7 / Math.max(1, x1 - x0), FRAME.h * 0.65 / Math.max(1, y1 - y0));
-        const zt = Math.max(FOLLOW_MIN, Math.min(FOLLOW_ZOOM, need));
+        const zt = mode === 'follow-wide' ? this.fitZoomX() : Math.max(FOLLOW_MIN, Math.min(FOLLOW_ZOOM, need));
         this.zoom += (zt - this.zoom) * (snap || k === 1 ? 1 : 1 - Math.exp(-1.5 * dt));
         const z = this.zoom;
         const tx = (x0 + x1) / 2, ty = (y0 + y1) / 2;

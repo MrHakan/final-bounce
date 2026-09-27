@@ -264,8 +264,25 @@ export class CreatorPanel {
       el.onchange = () => {
         v[el.dataset.view] = el.checked;
         if (el.dataset.view === 'particles') this.game.particles.enabled = el.checked;
+        if (el.dataset.view === 'closeCam') this.syncCloseCam();
       };
     }
+    $('btnCloseCam').onclick = () => this.setCloseCam(!v.closeCam);
+    this.syncCloseCam();
+  }
+
+  setCloseCam(on) {
+    this.game.view.closeCam = on;
+    this.syncCloseCam();
+    this.toast(on ? 'Close camera on' : 'Close camera off — whole course');
+  }
+
+  syncCloseCam() {
+    const on = !!this.game.view.closeCam;
+    $('btnCloseCam').setAttribute('aria-pressed', String(on));
+    const box = document.querySelector('[data-view="closeCam"]');
+    if (box) box.checked = on;
+    if ($('viewCamera').value !== 'auto') $('btnCloseCam').title = 'Close camera applies to the Auto camera';
   }
 
   // ---------- audio ----------
@@ -440,6 +457,7 @@ export class CreatorPanel {
       else if (k === 'r') this.game.restart();
       else if (k === 'n') this.newSeed();
       else if (k === 'g') this.interesting();
+      else if (k === 'c') this.setCloseCam(!this.game.view.closeCam);
       else if (k === 'd') {
         this.game.view.debug = !this.game.view.debug;
         const el = document.querySelector('[data-view="debug"]');

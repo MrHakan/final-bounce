@@ -127,6 +127,7 @@ export function resolveRaceConfig(presetId, overrides = {}) {
 
 export const VIEW_DEFAULTS = {
   camera: 'auto',          // auto | static | follow-leader | follow-pack
+  closeCam: true,          // auto camera follows the racers up close on every map (optional)
   particles: true,
   trails: true,
   shake: true,

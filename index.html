@@ -35,6 +35,7 @@
         <button id="btnRestart" type="button" title="R">Restart</button>
         <button id="btnReplay" type="button" title="Replay the same race">Replay</button>
         <button id="btnNew" type="button" title="N — new random seed">New seed</button>
+        <button id="btnCloseCam" type="button" class="toggle" aria-pressed="true" title="C — close follow camera on/off (auto camera)">Close cam</button>
         <div class="seg" role="group" aria-label="Simulation speed" id="speedGroup">
           <button type="button" data-speed="0.25">¼×</button>
           <button type="button" data-speed="0.5">½×</button>
@@ -140,6 +141,7 @@
           </select>
         </label>
         <div class="checks">
+          <label class="check"><input type="checkbox" data-view="closeCam"> Close camera</label>
           <label class="check"><input type="checkbox" data-view="particles"> Particles</label>
           <label class="check"><input type="checkbox" data-view="trails"> Trails</label>
           <label class="check"><input type="checkbox" data-view="shake"> Camera shake</label>
@@ -234,7 +236,7 @@
         <pre id="devOut" class="devout"></pre>
       </details>
 
-      <p class="foot">Keys: <kbd>Space</kbd> play/pause · <kbd>R</kbd> restart · <kbd>N</kbd> new seed · <kbd>G</kbd> interesting race · <kbd>D</kbd> debug</p>
+      <p class="foot">Keys: <kbd>Space</kbd> play/pause · <kbd>R</kbd> restart · <kbd>N</kbd> new seed · <kbd>G</kbd> interesting race · <kbd>D</kbd> debug · <kbd>C</kbd> close camera</p>
     </aside>
   </main>
 

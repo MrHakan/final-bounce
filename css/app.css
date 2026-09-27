@@ -90,6 +90,7 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 button.primary.rec { background: #d62839; border-color: #8f1a25; color: #fff; }
 button.wide { min-width: 84px; }
 button.small { padding: 4px 8px; font-size: 12px; }
+button.toggle[aria-pressed="true"] { background: #3b4049; color: #fff; border-color: #5a616c; }
 button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
