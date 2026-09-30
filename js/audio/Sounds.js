@@ -1,4 +1,6 @@
 // Procedural sound effects. Each entry: { throttle (s), play(engine, when, params) -> duration }.
+// `engine` provides { ctx, fx, noise, rand() }: the live AudioEngine or the OfflineMixer, so the
+// same code makes the sound on screen and in exported videos (rand() is seeded offline).
 export function makeNoiseBuffer(ctx) {
   const len = Math.floor(ctx.sampleRate * 1.0);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -39,7 +41,7 @@ function noise(e, when, { type = 'bandpass', freq = 1200, q = 1, to = null, atta
   const g = ctx.createGain();
   env(g, when, attack, gain, decay);
   src.connect(f); f.connect(g); g.connect(e.fx);
-  src.start(when, Math.random() * 0.5); src.stop(when + attack + decay + 0.05);
+  src.start(when, e.rand() * 0.5); src.stop(when + attack + decay + 0.05);
   return attack + decay;
 }
 

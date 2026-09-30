@@ -6,6 +6,7 @@ import { shareUrl, buildQuery } from '../core/Share.js';
 import { findInterestingRace } from '../generation/RaceFinder.js';
 import { recordingSupport, containerOf } from '../recording/Recorder.js';
 import { downloadBlob, canvasToPng, convertToMp4 } from '../recording/VideoExporter.js';
+import { exportVideo, probeFormats, webCodecsSupported } from '../recording/FrameExporter.js';
 import { runSelfTests } from '../dev/SelfTests.js';
 import { testSeeds } from '../dev/DevTools.js';
 
@@ -46,6 +47,7 @@ export class CreatorPanel {
     this.bindView();
     this.bindAudio();
     this.bindRecording();
+    this.bindExport();
     this.bindCover();
     this.bindDev();
     this.bindKeys();
@@ -98,14 +100,19 @@ export class CreatorPanel {
     const s = g.sessionState;
     const badge = $('stateBadge');
     badge.textContent = g.paused ? 'PAUSED' : s;
-    badge.className = 'badge' + (s === 'RECORDING' ? ' recording' : s === 'RUNNING' || s === 'REPLAY' || s === 'COUNTDOWN' ? ' running' : s === 'FINISHED' ? ' finished' : '');
+    badge.className = 'badge' + (s === 'RENDERING' ? ' rendering' : s === 'RECORDING' ? ' recording' : s === 'RUNNING' || s === 'REPLAY' || s === 'COUNTDOWN' ? ' running' : s === 'FINISHED' ? ' finished' : '');
     const playing = (g.state === GameState.RUNNING || g.state === GameState.COUNTDOWN) && !g.paused;
     $('btnPlay').textContent = playing ? 'Pause' : g.state === GameState.FINISHED ? 'Replay' : 'Play';
     const rec = this.recorder.active;
-    for (const id of ['btnLoadSeed', 'btnRandomSeed', 'btnRegenerate', 'btnInteresting', 'btnApply', 'btnNew', 'btnRestart', 'btnReplay', 'btnPlay', 'btnRecord', 'btnAutoRecord', 'presetSelect']) {
-      $(id).disabled = rec || this.busy || ((id === 'btnRecord' || id === 'btnAutoRecord') && this._recDisabled);
+    for (const id of ['btnLoadSeed', 'btnRandomSeed', 'btnRegenerate', 'btnInteresting', 'btnApply', 'btnNew', 'btnRestart', 'btnReplay', 'btnPlay', 'btnRecord', 'btnRender', 'btnAutoRecord', 'presetSelect']) {
+      let off = rec || this.busy;
+      if (id === 'btnRecord') off = off || !!this._recDisabled;                                  // live capture unsupported
+      else if (id === 'btnRender') off = off || !this.canExport;                                 // WebCodecs unsupported
+      else if (id === 'btnAutoRecord') off = off || (!this.canExport && !!this._recDisabled);    // neither path works
+      $(id).disabled = off;
     }
     $('btnStopRec').disabled = !rec;
+    $('btnCancelRender').disabled = !this.exporting;
     $('recDot').hidden = !rec;
     document.body.classList.toggle('is-recording', rec);
   }
@@ -266,6 +273,8 @@ export class CreatorPanel {
         if (el.dataset.view === 'closeCam') this.syncCloseCam();
       };
     }
+    $('viewCta').value = v.cta || '';
+    $('viewCta').oninput = (e) => { v.cta = e.target.value.toUpperCase(); };
     $('btnCloseCam').onclick = () => this.setCloseCam(!v.closeCam);
     this.syncCloseCam();
   }
@@ -289,6 +298,7 @@ export class CreatorPanel {
     const a = this.audio;
     $('volMaster').oninput = (e) => { a.setVolume('master', Number(e.target.value)); $('volMasterOut').textContent = Math.round(e.target.value * 100); };
     $('volFx').oninput = (e) => { a.setVolume('fx', Number(e.target.value)); $('volFxOut').textContent = Math.round(e.target.value * 100); };
+    $('volMusic').oninput = (e) => { a.setVolume('music', Number(e.target.value)); $('volMusicOut').textContent = Math.round(e.target.value * 100); if (Number(e.target.value) === 0) a.player.stop(0.2); };
     $('mute').onchange = (e) => a.setMuted(e.target.checked);
     $('btnTestSound').onclick = () => {
       a.ensure();
@@ -315,13 +325,11 @@ export class CreatorPanel {
       fmt.add(new Option(label, m));
     }
     if (!sup.ok) {
-      $('recSupport').className = 'meta warn';
-      $('recSupport').textContent = `Recording unavailable: ${sup.reason} The simulation still works; try desktop Chrome, Edge or Firefox.`;
-      for (const id of ['btnRecord', 'btnAutoRecord', 'recFormat', 'recFps', 'recBitrate']) $(id).disabled = true;
+      this._liveReason = sup.reason;
+      for (const id of ['btnRecord', 'recFormat']) $(id).disabled = true;
       this._recDisabled = true;
     } else {
-      const mp4 = sup.mimes.some((m) => containerOf(m) === 'mp4');
-      $('recSupport').innerHTML = `Records the canvas only (1080×1920) with sound.${mp4 ? ' This browser can write <b>MP4</b> directly.' : ' Exports <b>WebM</b>; MP4 conversion is optional.'}${sup.audio ? '' : ' <span class="warn">No Web Audio: video will be silent.</span>'}`;
+      $('recSupport').innerHTML = `Records the canvas only (1080×1920) with sound.${sup.audio ? '' : ' <span class="warn">No Web Audio: video will be silent.</span>'}`;
     }
     $('btnRecord').onclick = () => this.recordRace();
     $('btnStopRec').onclick = () => { if (this.stopWaiter) this.stopWaiter('manual'); };
@@ -367,14 +375,6 @@ export class CreatorPanel {
     else this.toast('Recording ready — download it below');
   }
 
-  async autoRecord() {
-    if (!this.support.ok) return;
-    this.audio.ensure();
-    const best = await this.interesting();
-    if (!best) return;
-    await this.recordRace();
-  }
-
   async toMp4() {
     const v = this.lastVideo;
     if (!v || v.container === 'mp4') return;
@@ -398,6 +398,113 @@ export class CreatorPanel {
       $('btnMp4').disabled = false;
       setTimeout(() => { bar.hidden = true; }, 800);
     }
+  }
+
+  // ---------- frame-perfect export ----------
+  async bindExport() {
+    this.formats = [];
+    this.canExport = false;
+    const sel = $('expFormat');
+    if (!webCodecsSupported()) {
+      $('expNote').textContent = 'Frame-perfect rendering needs WebCodecs (Chrome or Edge 94+, Firefox 130+, Safari 16.4+). Use Live capture below.';
+      $('btnRender').disabled = true; $('btnAutoRecord').disabled = !this.support.ok;
+      $('liveBox').open = true;
+      this.syncState();
+      return;
+    }
+    this.formats = await probeFormats({ fps: Number($('recFps').value), bitrate: Number($('recBitrate').value) });
+    if (!this.formats.length) {
+      $('expNote').textContent = 'This browser exposes WebCodecs but cannot encode any format this app writes. Use Live capture below.';
+      $('btnRender').disabled = true;
+      $('liveBox').open = true;
+      return;
+    }
+    this.canExport = true;
+    for (const f of this.formats) sel.add(new Option(f.label, f.id));
+    const note = () => { const f = this.formats.find((x) => x.id === sel.value); $('expNote').textContent = f ? f.note + '.' : ''; };
+    sel.onchange = note; note();
+    const h264 = this.formats.some((f) => f.id === 'mp4-h264');
+    $('recSupport').innerHTML = `Renders every frame at an exact 1/fps step (1080×1920) and the soundtrack offline, so the video is smooth and in sync whatever the machine load.${h264 ? ' This browser can write <b>MP4</b> directly.' : ' This browser cannot encode H.264, so the file is <b>WebM</b>; MP4 conversion is optional.'}`;
+    $('recSupport').className = 'meta';
+    $('btnRender').onclick = () => this.renderVideo();
+    $('btnCancelRender').onclick = () => { if (this.abort) this.abort.abort(); };
+    $('btnCaption').onclick = () => this.copy(this.caption(), 'Caption copied');
+    this.syncState();
+  }
+
+  caption() {
+    const g = this.game;
+    const r = g.gen && g.gen.result;
+    const name = r && r.winner ? r.winner.toUpperCase() : null;
+    const line1 = name ? `${name} wins seed ${g.seed} in ${r.winTime.toFixed(1)}s.` : `Nobody escapes seed ${g.seed}.`;
+    return `${line1}\nEach color breaks only its own bricks. Which color would you pick for the next one?\n#physics #simulation #satisfying #survival #marblerace`;
+  }
+
+  fmtEta(sec) { return sec < 90 ? `${Math.ceil(sec)} s` : `${Math.floor(sec / 60)} min ${Math.round(sec % 60)} s`; }
+
+  async renderVideo() {
+    if (this.busy || !this.canExport) return null;
+    const format = this.formats.find((f) => f.id === $('expFormat').value) || this.formats[0];
+    const g = this.game;
+    this.audio.ensure();
+    this.busy = true; this.exporting = true;
+    this.abort = new AbortController();
+    this.syncState();
+    $('renderProg').hidden = false; $('renderChip').hidden = false;
+    const stageText = { video: 'Rendering frames', audio: 'Rendering soundtrack', mux: 'Writing file', done: 'Done' };
+    let out = null;
+    try {
+      out = await exportVideo(g, this.audio, {
+        format, fps: Number($('recFps').value), bitrate: Number($('recBitrate').value), signal: this.abort.signal,
+        onProgress: (p) => {
+          const pct = Math.round(p.fraction * (p.stage === 'video' ? 92 : p.stage === 'audio' ? 95 : 100));
+          $('renderBar').style.width = `${pct}%`;
+          $('renderChip').textContent = `RENDER ${pct}%`;
+          $('renderMeta').textContent = p.stage === 'video'
+            ? `${stageText.video}: ${p.seconds.toFixed(1)} s · ${p.speed.toFixed(1)}× real time · about ${this.fmtEta(p.etaSeconds)} left`
+            : `${stageText[p.stage]}…`;
+        },
+      });
+      out.filename = `final-bounce-${g.seed}-${g.gen.result && g.gen.result.winner ? g.gen.result.winner : 'none'}.${out.container}`;
+      this.lastVideo = out;
+      $('exportBox').hidden = false;
+      $('exportMeta').innerHTML = `<b>${out.filename}</b><br>${(out.size / 1e6).toFixed(1)} MB · ${out.duration.toFixed(1)} s · ${out.fps} fps · ${out.label} · frame-perfect · rendered in ${out.renderSeconds.toFixed(0)} s`;
+      $('btnMp4').hidden = out.container === 'mp4';
+      $('mp4Meta').textContent = out.container === 'mp4' ? '' : 'Some sites only accept MP4. Conversion runs in your browser with ffmpeg.wasm (large download).';
+      if ($('recAutoDownload').checked || this.batchRunning) downloadBlob(out.blob, out.filename);
+      else this.toast('Video ready — download it below');
+    } catch (err) {
+      if (err && err.name === 'AbortError') this.toast('Render cancelled');
+      else { console.error(err); this.toast('Render failed: ' + (err.message || err)); }
+    } finally {
+      this.busy = false; this.exporting = false; this.abort = null;
+      $('renderProg').hidden = true; $('renderChip').hidden = true;
+      this.syncState();
+      g.render();
+    }
+    return out;
+  }
+
+  // Find an interesting race, then render it. With a batch count > 1, repeat.
+  async autoRecord() {
+    const n = Math.max(1, Math.min(12, Number($('batchCount').value) || 1));
+    if (this.canExport) {
+      this.batchRunning = n > 1;
+      try {
+        for (let i = 0; i < n; i++) {
+          if (n > 1) this.toast(`Video ${i + 1} of ${n}`);
+          const best = await this.interesting();
+          if (!best) break;
+          const out = await this.renderVideo();
+          if (!out) break;
+        }
+      } finally { this.batchRunning = false; }
+      return;
+    }
+    if (!this.support.ok) return;
+    this.audio.ensure();
+    const best = await this.interesting();
+    if (best) await this.recordRace();
   }
 
   // ---------- cover ----------

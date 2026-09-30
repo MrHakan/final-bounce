@@ -29,6 +29,7 @@
           <div class="busy-box"><div class="busy-title" id="busyTitle">Working…</div><div class="busy-bar"><i id="busyBar"></i></div><div class="busy-text" id="busyText"></div><button id="busyCancel" type="button" class="small">Cancel</button></div>
         </div>
         <div class="rec-dot" id="recDot" hidden>REC</div>
+        <div class="rec-dot render-chip" id="renderChip" hidden>RENDER</div>
       </div>
       <div class="transport">
         <button id="btnPlay" type="button" class="primary wide" title="Space">Play</button>
@@ -140,6 +141,9 @@
             <option value="follow-pack">Follow pack</option><option value="follow-leader">Follow leader</option>
           </select>
         </label>
+        <label>End text
+          <input id="viewCta" type="text" maxlength="40" placeholder="(none)">
+        </label>
         <div class="checks">
           <label class="check"><input type="checkbox" data-view="closeCam"> Close camera</label>
           <label class="check"><input type="checkbox" data-view="particles"> Particles</label>
@@ -147,7 +151,8 @@
           <label class="check"><input type="checkbox" data-view="shake"> Camera shake</label>
           <label class="check"><input type="checkbox" data-view="textOverlays"> Text overlays</label>
           <label class="check"><input type="checkbox" data-view="hud"> HUD</label>
-          <label class="check"><input type="checkbox" data-view="intro"> Intro</label>
+          <label class="check"><input type="checkbox" data-view="hook"> Title over the start</label>
+          <label class="check"><input type="checkbox" data-view="intro"> Intro card</label>
           <label class="check"><input type="checkbox" data-view="countdown"> Countdown</label>
           <label class="check"><input type="checkbox" data-view="deathMarkers"> Death markers</label>
           <label class="check"><input type="checkbox" data-view="safeArea"> Safe-area guide</label>
@@ -164,6 +169,9 @@
           <label>Effects <output id="volFxOut">90</output>
             <input id="volFx" type="range" min="0" max="1" step="0.05" value="0.9">
           </label>
+          <label>Music <output id="volMusicOut">45</output>
+            <input id="volMusic" type="range" min="0" max="1" step="0.05" value="0.45">
+          </label>
         </div>
         <div class="row">
           <label class="check"><input id="mute" type="checkbox"> Mute</label>
@@ -173,7 +181,7 @@
       </details>
 
       <details open>
-        <summary>Record Reel</summary>
+        <summary>Export video</summary>
         <p class="meta" id="recSupport"></p>
         <div class="grid2">
           <label>Frame rate
@@ -184,25 +192,45 @@
           </label>
         </div>
         <label>Format
-          <select id="recFormat"></select>
+          <select id="expFormat"></select>
         </label>
+        <p class="hint" id="expNote"></p>
         <label class="check"><input id="recAutoDownload" type="checkbox"> Download automatically when finished</label>
         <div class="row">
-          <button id="btnRecord" type="button" class="primary rec">Record race</button>
-          <button id="btnStopRec" type="button" disabled>Stop</button>
+          <button id="btnRender" type="button" class="primary rec" title="Frame-perfect: renders every frame and the soundtrack offline">Render video</button>
+          <button id="btnCancelRender" type="button" disabled>Cancel</button>
+        </div>
+        <div id="renderProg" hidden>
+          <div class="busy-bar inline"><i id="renderBar"></i></div>
+          <p class="meta" id="renderMeta"></p>
         </div>
         <div class="row">
-          <button id="btnAutoRecord" type="button" title="Generate an interesting race, then record it">Auto generate + record</button>
+          <button id="btnAutoRecord" type="button" title="Find an interesting race, then render it">Auto: find race + render</button>
+          <label class="inline" title="How many videos to produce in a row (each with its own interesting seed)">Batch
+            <input id="batchCount" type="number" min="1" max="12" value="1"> ×
+          </label>
         </div>
         <div class="export" id="exportBox" hidden>
           <p class="meta" id="exportMeta"></p>
           <div class="row">
             <button id="btnDownload" type="button" class="primary">Download video</button>
+            <button id="btnCaption" type="button">Copy caption</button>
             <button id="btnMp4" type="button" hidden>Convert to MP4</button>
           </div>
           <div class="busy-bar inline" id="mp4Bar" hidden><i></i></div>
           <p class="meta" id="mp4Meta"></p>
         </div>
+        <details class="sub" id="liveBox">
+          <summary>Live capture (real time)</summary>
+          <p class="hint">Records what is on screen while it plays, in real time. Use it only if Render video is unavailable: frame pacing depends on the machine and the tab must stay visible.</p>
+          <label>Format
+            <select id="recFormat"></select>
+          </label>
+          <div class="row">
+            <button id="btnRecord" type="button" class="rec">Record live</button>
+            <button id="btnStopRec" type="button" disabled>Stop</button>
+          </div>
+        </details>
       </details>
 
       <details>

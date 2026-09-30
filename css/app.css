@@ -51,6 +51,7 @@ kbd { border: 1px solid var(--line); border-bottom-width: 2px; padding: 0 4px; b
 }
 .badge.running { color: #9dffb0; border-color: #2f6b3c; }
 .badge.recording { color: #fff; background: #b3202c; border-color: #b3202c; }
+.badge.rendering { color: #fff; background: #2d6cdf; border-color: #2d6cdf; }
 .badge.finished { color: var(--accent); border-color: #6b5a14; }
 
 .layout {
@@ -189,3 +190,10 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 @font-face { font-family: "Barlow Condensed"; font-weight: 600; font-display: block; src: url("../assets/fonts/BarlowCondensed-600.woff2") format("woff2"); }
 @font-face { font-family: "Barlow Condensed"; font-weight: 700; font-display: block; src: url("../assets/fonts/BarlowCondensed-700.woff2") format("woff2"); }
 @font-face { font-family: "IBM Plex Mono"; font-weight: 600; font-display: block; src: url("../assets/fonts/IBMPlexMono-600.woff2") format("woff2"); }
+
+/* Export panel */
+label.inline { flex-direction: row; align-items: center; gap: 6px; margin: 0 0 0 auto; color: var(--muted); }
+label.inline input[type="number"] { width: 52px; background: #16181b; border: 1px solid var(--line); border-radius: 3px; padding: 6px 4px; color: var(--text); text-align: center; }
+details.sub { border: 0; padding: 8px 0 0; }
+details.sub > summary { font-size: 13px; color: var(--muted); }
+.render-chip { animation: none; background: #2d6cdf; right: auto; left: 10px; font-variant-numeric: tabular-nums; }

@@ -343,13 +343,13 @@ export class Simulation {
     const dz = this.danger;
     const f = this.field;
     let i = f.idxAt(c.x, c.y);
-    let gap = f.danger[i] - dz.dist;
+    let gap = f.dangerAt(c.x, c.y) - dz.dist;
     c.dangerGap = gap;
     if (dz.dist <= 0) return;
     if (gap < c.r) {
       const fx = f.pushX[i], fy = f.pushY[i];
       if (fx !== 0 || fy !== 0) {
-        const push = Math.min(3, c.r - gap);
+        const push = Math.min(6, c.r - gap);
         c.x += fx * push; c.y += fy * push;
         const vn = c.vx * fx + c.vy * fy;
         if (vn < 0) {
@@ -360,8 +360,7 @@ export class Simulation {
         // Walls and closed blocks push back; if they win, the gap closes.
         this.resolveStatic(c);
         if (!c.alive) return;
-        i = f.idxAt(c.x, c.y);
-        gap = f.danger[i] - dz.dist;
+        gap = f.dangerAt(c.x, c.y) - dz.dist;
         c.dangerGap = gap;
       }
       if (gap < c.r * CRUSH) { this.kill(c, 'danger', null); return; }

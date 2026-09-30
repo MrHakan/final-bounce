@@ -64,80 +64,103 @@ export class Renderer {
 
   resetTrails() { for (const t of this.trails) { t.n = 0; t.head = 0; } }
 
-  // ---------- static layers (built once per level) ----------
+  // ---------- static level geometry ----------
+  // Drawn as vector shapes, culled to the visible window each frame. That is
+  // both cheaper than scaling big pre-rendered bitmaps (a close camera shows
+  // only a small window of a tall level) and crisp at any zoom.
   buildStatic(level) {
-    const S = RENDER_SCALE;
-    const W = level.width, H = level.height;
     const f = level.field;
-
-    const floor = makeCanvas(Math.ceil(W * S), Math.ceil(H * S));
-    const g = floor.getContext('2d');
-    g.scale(S, S);
-    g.fillStyle = PALETTE.floor;
-    for (const c of level.route) g.fillRect(c.x, c.y, c.w, c.h);
-    // Sealed pockets (unreachable floor) read as solid.
-    g.fillStyle = PALETTE.wall;
+    // Sealed pockets (unreachable floor) read as solid: merge them into row runs.
+    const pockets = [];
     for (const c of level.route) {
       const tx0 = Math.floor(c.x / TILE), tx1 = Math.ceil((c.x + c.w) / TILE);
       const ty0 = Math.floor(c.y / TILE), ty1 = Math.ceil((c.y + c.h) / TILE);
-      for (let ty = ty0; ty < ty1; ty++) for (let tx = tx0; tx < tx1; tx++) {
-        const i = ty * f.cols + tx;
-        if (!f.floor[i] && f.free[i]) g.fillRect(tx * TILE, ty * TILE, TILE, TILE);
+      for (let ty = ty0; ty < ty1; ty++) {
+        let run = -1;
+        for (let tx = tx0; tx <= tx1; tx++) {
+          const on = tx < tx1 && !f.floor[ty * f.cols + tx] && f.free[ty * f.cols + tx];
+          if (on && run < 0) run = tx;
+          else if (!on && run >= 0) { pockets.push({ x: run * TILE, y: ty * TILE, w: (tx - run) * TILE, h: TILE }); run = -1; }
+        }
       }
     }
-    // Faint square grid, aligned to world space so motion reads as distance.
-    g.strokeStyle = PALETTE.grid;
-    g.lineWidth = 0.75;
-    g.beginPath();
-    for (const c of level.route) {
-      for (let x = Math.ceil(c.x / GRID) * GRID; x < c.x + c.w; x += GRID) { g.moveTo(x, c.y); g.lineTo(x, c.y + c.h); }
-      for (let y = Math.ceil(c.y / GRID) * GRID; y < c.y + c.h; y += GRID) { g.moveTo(c.x, y); g.lineTo(c.x + c.w, y); }
-    }
-    g.stroke();
-    // Finish: flat checkerboard, no label needed.
-    const fz = level.finish;
-    const q = 8;
-    g.save(); g.beginPath(); g.rect(fz.x, fz.y, fz.w, fz.h); g.clip();
-    for (let y = fz.y, j = 0; y < fz.y + fz.h; y += q, j++) for (let x = fz.x, i = 0; x < fz.x + fz.w; x += q, i++) {
-      g.fillStyle = (i + j) % 2 ? PALETTE.checkA : PALETTE.checkB;
-      g.fillRect(x, y, q, q);
-    }
-    g.restore();
-    g.strokeStyle = PALETTE.ink; g.lineWidth = 1.25;
-    g.strokeRect(fz.x + 0.6, fz.y + 0.6, fz.w - 1.2, fz.h - 1.2);
-
-    // Walls + bumpers on a transparent layer drawn above the purple field.
-    const wl = makeCanvas(Math.ceil(W * S), Math.ceil(H * S));
-    const h = wl.getContext('2d');
-    h.scale(S, S);
-    const o = 1.25; // outline width (2.5 px at 1080p)
-    h.fillStyle = PALETTE.ink;
-    for (const w of level.walls) h.fillRect(w.x - o, w.y - o, w.w + 2 * o, w.h + 2 * o);
-    for (const b of level.bumpers) { h.beginPath(); h.arc(b.x, b.y, b.r + o, 0, Math.PI * 2); h.fill(); }
-    h.fillStyle = PALETTE.wall;
-    for (const w of level.walls) h.fillRect(w.x, w.y, w.w, w.h);
-    for (const b of level.bumpers) {
-      h.fillStyle = PALETTE.wall;
-      h.beginPath(); h.arc(b.x, b.y, b.r, 0, Math.PI * 2); h.fill();
-      h.fillStyle = PALETTE.ink;
-      h.fillRect(b.x - 1, b.y - 1, 2, 2);
-    }
-    this.floorLayer = floor;
-    this.wallLayer = wl;
+    this.pockets = pockets;
   }
 
+  static overlaps(r, vis) { return r.x < vis.x1 && r.x + r.w > vis.x0 && r.y < vis.y1 && r.y + r.h > vis.y0; }
+
+  // Floor, faint grid, pockets and the finish checkerboard (below the purple).
+  drawFloor(vis) {
+    const { ctx } = this;
+    const level = this.level;
+    const rects = level.route.filter((c) => Renderer.overlaps(c, vis));
+    ctx.fillStyle = PALETTE.floor;
+    for (const c of rects) ctx.fillRect(c.x, c.y, c.w, c.h);
+    ctx.fillStyle = PALETTE.wall;
+    for (const p of this.pockets) if (Renderer.overlaps(p, vis)) ctx.fillRect(p.x, p.y, p.w, p.h);
+    // Faint square grid, aligned to world space so motion reads as distance.
+    ctx.strokeStyle = PALETTE.grid;
+    ctx.lineWidth = 0.75;
+    ctx.beginPath();
+    for (const c of rects) {
+      const xa = Math.max(c.x, vis.x0), xb = Math.min(c.x + c.w, vis.x1), ya = Math.max(c.y, vis.y0), yb = Math.min(c.y + c.h, vis.y1);
+      for (let x = Math.ceil(xa / GRID) * GRID; x < xb; x += GRID) { ctx.moveTo(x, ya); ctx.lineTo(x, yb); }
+      for (let y = Math.ceil(ya / GRID) * GRID; y < yb; y += GRID) { ctx.moveTo(xa, y); ctx.lineTo(xb, y); }
+    }
+    ctx.stroke();
+    // Finish: flat checkerboard, no label needed.
+    const fz = level.finish;
+    if (Renderer.overlaps(fz, vis)) {
+      const q = 8;
+      const j0 = Math.max(0, Math.floor((vis.y0 - fz.y) / q)), j1 = Math.min(Math.ceil(fz.h / q), Math.ceil((vis.y1 - fz.y) / q));
+      const i0 = Math.max(0, Math.floor((vis.x0 - fz.x) / q)), i1 = Math.min(Math.ceil(fz.w / q), Math.ceil((vis.x1 - fz.x) / q));
+      for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) {
+        const x = fz.x + i * q, y = fz.y + j * q;
+        ctx.fillStyle = (i + j) % 2 ? PALETTE.checkA : PALETTE.checkB;
+        ctx.fillRect(x, y, Math.min(q, fz.x + fz.w - x), Math.min(q, fz.y + fz.h - y));
+      }
+      ctx.strokeStyle = PALETTE.ink; ctx.lineWidth = 1.25;
+      ctx.strokeRect(fz.x + 0.6, fz.y + 0.6, fz.w - 1.2, fz.h - 1.2);
+    }
+  }
+
+  // Walls and bumpers (above the purple): charcoal outline first, then cream.
+  drawWalls(vis) {
+    const { ctx } = this;
+    const level = this.level;
+    const o = 1.25; // outline width (2.5 px at 1080p)
+    const pad = o + 1;
+    const walls = level.walls.filter((w) => w.x - pad < vis.x1 && w.x + w.w + pad > vis.x0 && w.y - pad < vis.y1 && w.y + w.h + pad > vis.y0);
+    const bumps = level.bumpers.filter((b) => b.x + b.r + pad > vis.x0 && b.x - b.r - pad < vis.x1 && b.y + b.r + pad > vis.y0 && b.y - b.r - pad < vis.y1);
+    ctx.fillStyle = PALETTE.ink;
+    for (const w of walls) ctx.fillRect(w.x - o, w.y - o, w.w + 2 * o, w.h + 2 * o);
+    for (const b of bumps) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r + o, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = PALETTE.wall;
+    for (const w of walls) ctx.fillRect(w.x, w.y, w.w, w.h);
+    for (const b of bumps) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = PALETTE.ink;
+    for (const b of bumps) ctx.fillRect(b.x - 1, b.y - 1, 2, 2);
+  }
+
+  // Charcoal surround with an almost invisible diagonal hatch. Drawn once into a
+  // cache: redrawing ~140 full-screen strokes per frame cost more than the whole race.
   drawVoid() {
     const { ctx } = this;
+    if (!this.voidCache) {
+      const W = this.canvas.width, H = this.canvas.height;
+      const c = makeCanvas(W, H);
+      const g = c.getContext('2d');
+      g.fillStyle = PALETTE.void;
+      g.fillRect(0, 0, W, H);
+      g.strokeStyle = PALETTE.voidLine;
+      g.lineWidth = 2;
+      g.beginPath();
+      for (let k = -H; k < W; k += 22) { g.moveTo(k, 0); g.lineTo(k + H, H); }
+      g.stroke();
+      this.voidCache = c;
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = PALETTE.void;
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    // Almost invisible diagonal hatching (screen space, fixed: it must not swim).
-    ctx.strokeStyle = PALETTE.voidLine;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    const W = this.canvas.width, H = this.canvas.height;
-    for (let k = -H; k < W; k += 22) { ctx.moveTo(k, 0); ctx.lineTo(k + H, H); }
-    ctx.stroke();
+    ctx.drawImage(this.voidCache, 0, 0);
   }
 
   // frame: { sim, alpha, camera, view, particles, pres, debug }
@@ -152,7 +175,8 @@ export class Renderer {
     const z = cam.zoom * S;
     ctx.setTransform(z, 0, 0, z, (-cam.x * cam.zoom + cam.shakeX) * S, (-cam.y * cam.zoom + cam.shakeY) * S);
     const a = frame.alpha ?? 1;
-    this.drawScene(sim, view, a, cam.y, cam.y + VIEW_H / cam.zoom, frame.updateTrails !== false, frame.clock || 0);
+    const m = 8 + cam.shakeAmp * 2;   // margin (world px) so shake never exposes an edge
+    this.drawScene(sim, view, a, { x0: cam.x - m, y0: cam.y - m, x1: cam.x + VIEW_W / cam.zoom + m, y1: cam.y + VIEW_H / cam.zoom + m }, frame.updateTrails !== false, frame.clock || 0);
     if (frame.particles && view.particles) frame.particles.draw(ctx);
     if (view.debug && sim) this.drawDebugWorld(sim, a);
 
@@ -161,18 +185,18 @@ export class Renderer {
     this.drawHud(frame);
   }
 
-  // World pass shared by the main view and the inset camera. The caller sets
-  // the transform; top/bottom (world y) limit the purple scan to what is visible.
-  drawScene(sim, view, a, top, bottom, updateTrails, clock) {
+  // World pass shared by the main view and the inset camera. The caller sets the
+  // transform; `vis` is the visible window in world px: only shapes and purple
+  // tiles inside it are drawn.
+  drawScene(sim, view, a, vis, updateTrails, clock) {
     const { ctx } = this;
     const level = this.level;
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(this.floorLayer, 0, 0, level.width, level.height);
+    this.drawFloor(vis);
     if (sim) {
-      this.drawDanger(sim, top, bottom);
+      this.drawDanger(sim, vis);
       if (view.trails) this.drawTrails(sim, a, updateTrails);
     }
-    ctx.drawImage(this.wallLayer, 0, 0, level.width, level.height);
+    this.drawWalls(vis);
     if (sim) {
       this.drawBumperHits(sim);
       this.drawBarriers(sim);
@@ -198,7 +222,8 @@ export class Renderer {
     ctx.fillStyle = PALETTE.void; ctx.fillRect(px - r, py - r, 2 * r, 2 * r);
     const z = zoom * S;
     ctx.setTransform(z, 0, 0, z, (px - pip.x * zoom) * S, (py - pip.y * zoom) * S);
-    this.drawScene(sim, view, a, pip.y - r / zoom, pip.y + r / zoom, false, 0);
+    const pr = r / zoom + 6;
+    this.drawScene(sim, view, a, { x0: pip.x - pr, y0: pip.y - pr, x1: pip.x + pr, y1: pip.y + pr }, false, 0);
     ctx.restore();
     ctx.setTransform(S, 0, 0, S, 0, 0);
     ctx.globalAlpha = k;
@@ -211,22 +236,24 @@ export class Renderer {
   }
 
   // Stepped purple: whole 4px tiles, solid body + a lighter one-band edge.
-  drawDanger(sim, top, bottom) {
+  drawDanger(sim, vis) {
     const d = sim.danger.dist;
     if (d <= 0) return;
     const { ctx } = this;
     const f = this.level.field;
     const cols = f.cols;
-    const viewTop = Math.max(0, Math.floor(top / TILE) - 1);
-    const viewBot = Math.min(f.rows, Math.ceil(bottom / TILE) + 1);
+    const viewTop = Math.max(0, Math.floor(vis.y0 / TILE) - 1);
+    const viewBot = Math.min(f.rows, Math.ceil(vis.y1 / TILE) + 1);
+    const colL = Math.max(0, Math.floor(vis.x0 / TILE) - 1);
+    const colR = Math.min(cols, Math.ceil(vis.x1 / TILE) + 1);
     const band = 6;
     const drawRuns = (lo, hi) => {
       for (let ty = viewTop; ty < viewBot; ty++) {
         let run = -1;
         const row = ty * cols;
-        for (let tx = 0; tx <= cols; tx++) {
+        for (let tx = colL; tx <= colR; tx++) {
           let on = false;
-          if (tx < cols) { const i = row + tx; const v = f.danger[i]; on = f.floor[i] === 1 && v < hi && v >= lo; }
+          if (tx < colR) { const i = row + tx; const v = f.danger[i]; on = f.floor[i] === 1 && v < hi && v >= lo; }
           if (on && run < 0) run = tx;
           else if (!on && run >= 0) { ctx.fillRect(run * TILE, ty * TILE, (tx - run) * TILE, TILE + 0.3); run = -1; }
         }
@@ -601,6 +628,13 @@ export class Renderer {
       });
       ctx.globalAlpha = 1;
     }
+    if (pres.hook) {
+      // Non-blocking title over the first seconds: says what is going on.
+      ctx.globalAlpha = pres.hook.alpha;
+      this.text('WHO ESCAPES THE FLOOD?', cx, 150, { size: 30, align: 'center', outline: 5, spacing: 1 });
+      this.text('EACH COLOR BREAKS ONLY ITS OWN BRICKS', cx, 176, { size: 13, align: 'center', outline: 3, spacing: 0.9 });
+      ctx.globalAlpha = 1;
+    }
     if (pres.countdown) {
       const { label, k } = pres.countdown;
       const go = label === 'GO!';
@@ -638,6 +672,7 @@ export class Renderer {
     if (card.stats) {
       card.stats.lines.forEach((l, i) => this.text(l, cx, y + 50 + i * 20, { size: 14, family: FONT_MONO, weight: 600, align: 'center', color: PALETTE.text, outline: 3 }));
       this.text(card.stats.seed, cx, y + 50 + card.stats.lines.length * 20 + 18, { size: 12, family: FONT_MONO, weight: 600, align: 'center', color: PALETTE.muted, outline: 3 });
+      if (card.stats.cta) this.text(card.stats.cta, cx, y + 50 + card.stats.lines.length * 20 + 52, { size: 15, align: 'center', color: PALETTE.text, outline: 4, spacing: 1.4 });
     }
     ctx.globalAlpha = 1;
   }

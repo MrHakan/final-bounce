@@ -295,6 +295,19 @@ export function buildCourseField(level, radius) {
     ok: true, tile: TILE, cols, rows, floor, free, distS, distF, danger, flowX, flowY, pushX, pushY,
     totalLength, freeCount, unreachable, startIdx, idxAt,
     distAt(x, y) { return distS[idxAt(x, y)]; },
+    // Purple threshold at an exact position: bilinear between tile centres, so the
+    // gap between a racer and the front changes smoothly as the racer moves (the
+    // per-tile array is piecewise constant, which made a racer pushed a few px
+    // inside one 4 px tile look "not moved" and get crushed with room to spare).
+    dangerAt(x, y) {
+      const gx = x / TILE - 0.5, gy = y / TILE - 0.5;
+      const ix = Math.floor(gx), iy = Math.floor(gy), tx = gx - ix, ty = gy - iy;
+      if (ix < 0 || iy < 0 || ix + 1 >= cols || iy + 1 >= rows) return danger[idxAt(x, y)];
+      const i = iy * cols + ix;
+      const a = danger[i], b = danger[i + 1], c = danger[i + cols], d = danger[i + cols + 1];
+      if (!isFinite(a) || !isFinite(b) || !isFinite(c) || !isFinite(d)) return danger[idxAt(x, y)];
+      return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+    },
     progressAt(x, y) {
       const i = idxAt(x, y);
       const s = distS[i], e = distF[i];

@@ -7,6 +7,7 @@ import { randomSeedString } from './core/RNG.js';
 import { resolveRaceConfig } from './config/presets.js';
 import { AudioEngine } from './audio/AudioEngine.js';
 import { Recorder } from './recording/Recorder.js';
+import { exportVideo, probeFormats, webCodecsSupported } from './recording/FrameExporter.js';
 import { CreatorPanel } from './ui/CreatorPanel.js';
 import { StatsPanel } from './ui/StatsPanel.js';
 import { testSeeds } from './dev/DevTools.js';
@@ -45,7 +46,10 @@ try {
   game.generate(randomSeedString(), resolveRaceConfig('medium'), 'medium');
 }
 
-const loop = new GameLoop((dt) => { game.fps = loop.fps; game.update(dt); }, () => game.render());
+audio.getIntensity = () => game.intensity;
+
+// While the video exporter drives the game frame by frame the live loop stays out of the way.
+const loop = new GameLoop((dt) => { game.fps = loop.fps; if (!game.exporting) game.update(dt); }, () => { if (!game.exporting) game.render(); });
 loop.start();
 
 // Developer console access.
@@ -55,5 +59,8 @@ window.race = {
     onProgress: (i, n) => { if (i % 50 === 0 || i === n) console.log(`testSeeds ${i}/${n}`); },
   }),
   runSelfTests,
+  exportVideo: (opts) => exportVideo(game, audio, opts),
+  probeFormats,
+  webCodecsSupported,
   findInterestingRace: (opts) => findInterestingRace(game.raceConfig, opts),
 };

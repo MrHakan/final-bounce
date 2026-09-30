@@ -56,10 +56,10 @@ export const DIFFICULTIES = {
   //   v0/accel: base rate (px/s) and its growth per second
   //   catchGap: how far ahead of the front the last racer may be before the
   //             front speeds up; catchK: px/s gained per px beyond that
-  easy:   { v0: 8,  accel: 0.4,  delay: 9,   catchGap: 60, catchK: 0.8, maxRate: 130 },
-  normal: { v0: 12, accel: 0.65, delay: 7,   catchGap: 36, catchK: 1.3, maxRate: 180 },
-  hard:   { v0: 13, accel: 0.75, delay: 7,   catchGap: 32, catchK: 1.4, maxRate: 190 },
-  chaos:  { v0: 14, accel: 0.85, delay: 6.5, catchGap: 30, catchK: 1.5, maxRate: 200 },
+  easy:   { v0: 8,    accel: 0.4,  delay: 9,   catchGap: 60, catchK: 0.8, maxRate: 130 },
+  normal: { v0: 11,   accel: 0.6,  delay: 7.5, catchGap: 40, catchK: 1.2, maxRate: 170 },
+  hard:   { v0: 12.5, accel: 0.75, delay: 7,   catchGap: 34, catchK: 1.4, maxRate: 185 },
+  chaos:  { v0: 14,   accel: 0.9,  delay: 6.5, catchGap: 30, catchK: 1.5, maxRate: 200 },
 };
 
 export const RACE_DEFAULTS = {
@@ -102,7 +102,7 @@ export const PRESETS = {
   },
   chaos: {
     label: 'Chaos',
-    race: { complexity: 'high', difficulty: 'chaos', barrierDensity: 'high', weaponKills: 2, coursePull: 1.15, contestantSpeed: 1.1, minDuration: 14, maxDuration: 42 },
+    race: { complexity: 'high', difficulty: 'chaos', barrierDensity: 'high', coursePull: 1.15, contestantSpeed: 1.1, minDuration: 14, maxDuration: 42 },
   },
   close: {
     label: 'Close race',
@@ -131,8 +131,10 @@ export const VIEW_DEFAULTS = {
   shake: true,
   textOverlays: true,
   hud: true,
-  intro: true,
-  countdown: true,
+  hook: true,              // non-blocking title over the first seconds of the race
+  intro: false,            // blocking 'WHO WILL SURVIVE?' card with the four names
+  cta: 'WHO WINS THE NEXT ONE?',  // small line on the result card ('' to hide)
+  countdown: false,
   safeArea: false,
   debug: false,
   deathMarkers: false,

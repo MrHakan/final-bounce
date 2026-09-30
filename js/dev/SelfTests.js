@@ -10,6 +10,10 @@ import { makeWall } from '../entities/Wall.js';
 import { makeBarrier } from '../entities/Barrier.js';
 import { recordingSupport } from '../recording/Recorder.js';
 import { stallRounds } from '../generation/StartStalls.js';
+import { MIN_GAP } from '../generation/Pieces.js';
+import { smoothIntensity } from '../core/Intensity.js';
+import { levelFor, rootFor, scheduleStep } from '../audio/Music.js';
+import { normalize } from '../audio/OfflineMixer.js';
 
 // Synthetic single-room arena for rule tests.
 export function makeArena({ w = 300, h = 300, walls = [], barriers = [], bumpers = [], spawns, finish, weapon = null, params = {} } = {}) {
@@ -216,6 +220,153 @@ export const TESTS = [
     if (noCodec.ok || noCodec.mimes.length) return 'no-codec environment reported as supported';
     const webm = recordingSupport({ HTMLCanvasElement: FakeCanvas, MediaRecorder: { isTypeSupported: (m) => m.startsWith('video/webm') } });
     return (webm.ok && webm.mimes[0] === 'video/webm;codecs=vp9,opus') || 'codec preference order wrong';
+  }],
+
+  ['tower structure: stalls at the bottom, finish on top, plug before the finish', () => {
+    const KINDS = new Set(['STALLS', 'SCATTER', 'SLALOM', 'PILLARS', 'LANES', 'FUNNEL', 'ARMORY', 'SPRINT', 'FINISH']);
+    for (const p of ['short', 'medium', 'chaos', 'long']) for (let i = 0; i < 12; i++) {
+      const l = generateLevel(seedFromIndex('TW' + p, i), resolveRaceConfig(p, { validateRace: false })).level;
+      const r = l.route;
+      if (r[0].kind !== 'STALLS' || r[r.length - 1].kind !== 'FINISH') return `${p} ${i}: bad ends`;
+      if (r.some((c) => !KINDS.has(c.kind))) return `${p} ${i}: unknown hall kind`;
+      for (let k = 1; k < r.length; k++) if (!(r[k].y + r[k].h <= r[k - 1].y + 1)) return `${p} ${i}: hall ${k} is not above hall ${k - 1}`;
+      // Each door must lie inside the x-range of both halls it joins, and halls flow in alternating directions.
+      for (const d of l.doors) {
+        const lo = r[d.index - 1], hi = r[d.index];
+        if (d.a < Math.max(lo.x, hi.x) || d.b > Math.min(lo.x + lo.w, hi.x + hi.w)) return `${p} ${i}: door ${d.index} outside a hall`;
+        if (lo.dir === hi.dir) return `${p} ${i}: halls ${d.index - 1}/${d.index} do not alternate`;
+      }
+      if (l.barriers.filter((b) => b.role === 'final').length !== l.plug.blocks) return `${p} ${i}: plug block count`;
+      if (l.weaponIndex < 1 && l.config.weaponEnabled) return `${p} ${i}: no armory hall`;
+      const mids = r.length - 2;
+      const want = { short: [2, 2], medium: [3, 3], chaos: [4, 4], long: [7, 7] }[p];
+      if (mids < want[0] || mids > want[1]) return `${p} ${i}: ${mids} halls`;
+    }
+    return true;
+  }],
+  ['set pieces keep clear gaps between obstacles (racers never get wedged)', () => {
+    for (let i = 0; i < 40; i++) {
+      const l = generateLevel(seedFromIndex('CLR', i), resolveRaceConfig('chaos', { validateRace: false })).level;
+      for (let a = 0; a < l.bumpers.length; a++) for (let b = a + 1; b < l.bumpers.length; b++) {
+        const A = l.bumpers[a], B = l.bumpers[b];
+        const gap = Math.hypot(A.x - B.x, A.y - B.y) - A.r - B.r;
+        if (gap < MIN_GAP - 0.6) return `seed ${i}: bumpers ${gap.toFixed(1)}px apart`;
+      }
+    }
+    return true;
+  }],
+  ['purple pushes along its own front normal (regression: no crush with room above)', () => {
+    // Inside a stall lane the course flow points sideways at brick height, but the
+    // purple rises from the bottom, so its push must point up the lane.
+    for (let i = 0; i < 15; i++) {
+      const l = generateLevel(seedFromIndex('PSH', i), resolveRaceConfig('medium', { validateRace: false })).level;
+      const f = l.field, sr = l.stallRect, y0 = sr.y, H = sr.h;
+      let n = 0, up = 0;
+      for (const lane of l.stallGeo.lanes) {
+        for (let fy = 0.3; fy <= 0.85; fy += 0.05) {
+          const idx = f.idxAt(lane.x + lane.w / 2, y0 + H * fy);
+          if (!f.free[idx]) continue;
+          n++;
+          if (f.pushY[idx] < -0.6) up++;
+        }
+      }
+      if (n < 20 || up / n < 0.95) return `seed ${i}: only ${up}/${n} lane samples push upward`;
+    }
+    return true;
+  }],
+  ['the purple moves a racer along ITS normal, not along the course flow', () => {
+    // Find, in real stall lanes, a free spot where the course flow and the purple's
+    // normal disagree (flow points sideways at brick height, purple rises upward).
+    // Put the purple's front onto a racer there and check which way it is shoved.
+    let tested = 0;
+    for (let i = 0; i < 12 && tested < 6; i++) {
+      const l = generateLevel(seedFromIndex('NRM', i), resolveRaceConfig('medium', { validateRace: false })).level;
+      const f = l.field, sr = l.stallRect;
+      const spots = [];
+      for (const lane of l.stallGeo.lanes) {
+        for (let fy = 0.2; fy <= 0.8; fy += 0.02) {
+          const x = lane.x + lane.w / 2, y = sr.y + sr.h * fy;
+          const idx = f.idxAt(x, y);
+          if (!f.free[idx] || !f.isFreeAt(x, y - 5) || !f.isFreeAt(x, y + 5)) continue;
+          const dot = f.flowX[idx] * f.pushX[idx] + f.flowY[idx] * f.pushY[idx];
+          if (dot < 0.3 && f.pushY[idx] < -0.7) spots.push({ x, y, idx });
+        }
+      }
+      if (!spots.length) continue;
+      const sp = spots[Math.floor(spots.length / 2)];
+      const sim = new Simulation(l);
+      const c = sim.contestants[0];
+      c.x = sp.x; c.y = sp.y; c.px = sp.x; c.py = sp.y; c.vx = 0; c.vy = 0.001;
+      sim.danger.dist = f.danger[sp.idx] + 1;           // the front has just passed the racer
+      sim.checkDanger(c);
+      const dx = c.x - sp.x, dy = c.y - sp.y, len = Math.hypot(dx, dy);
+      if (!c.alive) return `seed ${i}: racer crushed with free space above it`;
+      if (len < 0.5) return `seed ${i}: racer not moved at all`;
+      const cos = (dx * f.pushX[sp.idx] + dy * f.pushY[sp.idx]) / len;
+      if (cos < 0.9) return `seed ${i}: shoved with cos ${cos.toFixed(2)} to the purple's normal (flow=(${f.flowX[sp.idx].toFixed(2)},${f.flowY[sp.idx].toFixed(2)}), push=(${f.pushX[sp.idx].toFixed(2)},${f.pushY[sp.idx].toFixed(2)}))`;
+      // Sweep: the front now rises through the lane at 1.5 px/tick (a fast purple). The
+      // racer is pushed up ahead of it and must survive until it is nearly at the ceiling.
+      const sim2 = new Simulation(l);
+      const c2 = sim2.contestants[0];
+      const lane = l.stallGeo.lanes.find((ln) => sp.x >= ln.x && sp.x <= ln.x + ln.w);
+      c2.x = c2.px = lane.x + lane.w / 2; c2.y = c2.py = sr.y + sr.h * 0.8; c2.vx = 0; c2.vy = 0.001;
+      sim2.danger.dist = 0;
+      for (let t = 0; t < 400 && c2.y - sr.y > 24; t++) {
+        sim2.danger.dist += 1.5;
+        sim2.checkDanger(c2);
+        if (!c2.alive) return `seed ${i}: sweep crushed the racer at ${(c2.y - sr.y).toFixed(0)}px below the ceiling (front ${sim2.danger.dist.toFixed(0)})`;
+      }
+      tested++;
+    }
+    return tested >= 3 || `only ${tested} suitable lane spots found`;
+  }],
+  ['tension curve is deterministic, bounded and rises toward the finish', () => {
+    const lvl = generateLevel('TEN001', resolveRaceConfig('medium')).level;
+    const run = () => {
+      const sim = new Simulation(lvl); let v = 0.12; const out = [];
+      while (!sim.ended && sim.tick < 120 * 80) { sim.step(); if (sim.tick % 4 === 0) { v = smoothIntensity(v, sim, 4 / 120); out.push(v); } }
+      return out;
+    };
+    const a = run(), b = run();
+    if (a.length !== b.length || a.some((x, i) => x !== b[i])) return 'not deterministic';
+    if (a.some((x) => x < 0 || x > 1 || !isFinite(x))) return 'out of range';
+    const k = Math.floor(a.length / 5), mean = (arr) => arr.reduce((s, x) => s + x, 0) / arr.length;
+    return mean(a.slice(-k)) > mean(a.slice(0, k)) + 0.05 || `start ${mean(a.slice(0, k)).toFixed(2)} end ${mean(a.slice(-k)).toFixed(2)}`;
+  }],
+  ['score: intensity levels, seeded key, layered arrangement', () => {
+    if ([0.05, 0.3, 0.6, 0.9].map(levelFor).join() !== '0,1,2,3') return 'level thresholds';
+    const roots = new Set();
+    for (let i = 0; i < 40; i++) { const r = rootFor('K' + i); if (r < 43 || r > 49) return 'root out of range'; roots.add(r); }
+    if (roots.size < 4) return 'key does not vary with the seed';
+    if (rootFor('SAME') !== rootFor('SAME')) return 'key not deterministic';
+    // Count the nodes one bar creates at each level with a recording mock: more layers = more voices.
+    const voices = (level, seed) => {
+      let n = 0;
+      const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime() {} });
+      const node = () => ({ connect() {}, start() { n++; }, stop() {}, frequency: param(), gain: param(), Q: param(), detune: param(), type: '' });
+      const ctx = { createOscillator: node, createGain: node, createBiquadFilter: node, createBufferSource: node };
+      const e = { ctx, music: {}, noise: {}, rand: () => 0.3, rumble: null, intensityNow: 0.5 };
+      for (let bar = 0; bar < 4; bar++) for (let st = 0; st < 16; st++) scheduleStep(e, 10 + bar * 2 + st * 0.1, st, bar, level, rootFor(seed), seed);
+      return n;
+    };
+    const v = [0, 1, 2, 3].map((lv) => voices(lv, 'ARR'));
+    if (!(v[0] < v[1] && v[1] < v[2] && v[2] < v[3])) return `voices per level ${v.join(',')} are not increasing`;
+    return voices(2, 'ARR') === voices(2, 'ARR') || 'not deterministic';
+  }],
+  ['audio normalisation reaches the target loudness and never clips', () => {
+    const mk = (amp) => { const L = new Float32Array(48000), R = new Float32Array(48000); for (let i = 0; i < L.length; i++) { L[i] = amp * Math.sin(i * 0.05); R[i] = amp * Math.sin(i * 0.05 + 1); } return { numberOfChannels: 2, length: L.length, getChannelData: (c) => (c ? R : L) }; };
+    for (const amp of [0.02, 0.1, 0.9, 3]) {
+      const buf = mk(amp);
+      normalize(buf);
+      let peak = 0, sum = 0;
+      for (const ch of [buf.getChannelData(0), buf.getChannelData(1)]) for (const x of ch) { peak = Math.max(peak, Math.abs(x)); sum += x * x; }
+      if (peak > 0.92 + 1e-6) return `amp ${amp}: peak ${peak}`;
+      const rms = Math.sqrt(sum / (2 * 48000));
+      const inRms = amp / Math.SQRT2;                      // rms of the input sine
+      const want = Math.min(0.1, inRms * 3.2);             // target loudness, limited by the max gain
+      if (amp <= 0.1 && rms < want * 0.9) return `amp ${amp}: rms ${rms.toFixed(3)} below ${want.toFixed(3)}`;
+    }
+    return true;
   }],
   ['generated maps pass structural validation (30 seeds, all presets)', () => {
     for (const p of ['short', 'medium', 'chaos', 'long']) {

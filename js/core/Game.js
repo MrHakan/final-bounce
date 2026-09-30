@@ -7,6 +7,7 @@ import { generateLevel } from '../generation/LevelGenerator.js';
 import { Renderer } from '../rendering/Renderer.js';
 import { Camera } from '../rendering/Camera.js';
 import { Particles } from '../rendering/Particles.js';
+import { smoothIntensity } from './Intensity.js';
 
 export const GameState = Object.freeze({
   IDLE: 'IDLE',             // nothing generated yet
@@ -45,6 +46,14 @@ export function courseBounds(level) {
   return { x: x0 - m, y: y0 - m, w: x1 - x0 + 2 * m, h: y1 - y0 + 2 * m };
 }
 
+// Non-blocking title over the first seconds of the race (seconds since GO).
+const HOOK = { fadeIn: 0.18, hold: 2.0, fadeOut: 0.4, total: 2.4 };
+function hookAlpha(t) {
+  if (t < HOOK.fadeIn) return t / HOOK.fadeIn;
+  if (t < HOOK.hold) return 1;
+  return Math.max(0, 1 - (t - HOOK.hold) / HOOK.fadeOut);
+}
+
 const INTRO = 1.0;
 const COUNT_STEP = 0.3;
 const COUNTDOWN = 4 * COUNT_STEP; // 3, 2, 1, GO  (~1.2 s)
@@ -81,6 +90,8 @@ export class Game {
     this.lastEvents = [];
     this.fps = 0;
     this.maxStepsPerFrame = 160;
+    this.intensity = 0.12;       // 0..1 race tension, drives the score
+    this.exporting = false;      // true while the video exporter drives update()/render itself
   }
 
   setState(s) {
@@ -91,6 +102,7 @@ export class Game {
   }
 
   get sessionState() {
+    if (this.exporting) return 'RENDERING';
     if (this.recording) return GameState.RECORDING;
     if (this.mode === 'replay' && (this.state === GameState.RUNNING || this.state === GameState.COUNTDOWN)) return GameState.REPLAY;
     return this.state;
@@ -127,6 +139,7 @@ export class Game {
     this.particles.reset(this.seed);
     this.renderer.resetTrails();
     this.acc = 0; this.presT = 0; this.goT = 0; this.cardT = 0; this.slowmoLeft = 0;
+    this.intensity = 0.12;
     this.callouts = [];
     this.completeSent = false;
     this.paused = false;
@@ -205,6 +218,7 @@ export class Game {
         if (this.sim.ended) break;
       }
       if (steps >= this.maxStepsPerFrame) this.acc = 0; // never spiral
+      this.updateIntensity(dt);
       if (this.sim.ended) { this.cardT = 0; this.setState(GameState.FINISHED); }
     } else if (this.state === GameState.FINISHED) {
       this.cardT += dt;
@@ -220,6 +234,10 @@ export class Game {
     this.callouts = this.callouts.filter((c) => c.age < c.dur);
     this.camera.closeCam = this.view.closeCam;
     if (this.sim) this.camera.update(this.sim, this.view.camera, dt);
+  }
+
+  updateIntensity(dt) {
+    this.intensity = smoothIntensity(this.intensity, this.sim, dt);
   }
 
   dispatch(events) {
@@ -300,11 +318,12 @@ export class Game {
     } else if (this.state === GameState.RUNNING && this.view.countdown && this.goT < 0.45) {
       pres.countdown = { label: 'GO!', k: (this.goT + COUNT_STEP * 0) / 0.45 };
     }
+    if (this.state === GameState.RUNNING && this.view.hook && this.goT < HOOK.total) pres.hook = { alpha: hookAlpha(this.goT), t: this.goT };
     if (this.state === GameState.FINISHED) {
       const r = this.sim;
       const w = r.winner ? r.contestants.find((c) => c.id === r.winner) : null;
       const lines = w ? [`TIME ${w.finishTime.toFixed(1)}s`, `KILLS ${w.kills}`] : [`TIME ${r.time.toFixed(1)}s`];
-      pres.card = { t: this.cardT, winner: r.winner, stats: this.view.textOverlays ? { lines, seed: `SEED ${this.seed}` } : null };
+      pres.card = { t: this.cardT, winner: r.winner, stats: this.view.textOverlays ? { lines, seed: `SEED ${this.seed}`, cta: this.view.cta || '' } : null };
     }
     return pres;
   }
@@ -327,8 +346,10 @@ export class Game {
     };
   }
 
-  render() {
-    this.renderer.draw({
+  // Everything the renderer needs for the current moment. The video exporter draws
+  // the same description onto its own canvas (with the creator guides stripped).
+  frameArgs() {
+    return {
       sim: this.sim,
       alpha: this.state === GameState.RUNNING && !this.paused ? Math.min(1, this.acc / DT) : 1,
       camera: this.camera,
@@ -339,7 +360,11 @@ export class Game {
       clock: this.clock,
       updateTrails: !this.paused,
       debug: this.view.debug ? this.debugInfo() : null,
-    });
+    };
+  }
+
+  render() {
+    this.renderer.draw(this.frameArgs());
   }
 
   // Render an arbitrary moment of this race into a separate 1080x1920 canvas.
