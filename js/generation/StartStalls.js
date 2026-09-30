@@ -1,5 +1,5 @@
-// Starting stalls: the first two route cells form one wide start room split
-// into four narrow lanes, one racer per lane, plus an exit lane.
+// Starting stalls: the bottom hall of the tower is split into four narrow
+// lanes, one racer per lane, plus an exit lane.
 //
 //   | L0 |B0| L1 |B1| L2 |B2| L3 |B3|   EXIT   |
 //
@@ -16,7 +16,7 @@ import { makeBarrier } from '../entities/Barrier.js';
 const LANE_W = 28;
 const BRICK_W = 12;
 const BRICK_ROWS = 3;
-const BRICK_SPAN = 0.62; // fraction of the room height taken by the brick columns
+const BRICK_SPAN = 0.7;  // fraction of the room height taken by the brick columns
 
 function permutations(arr) {
   if (arr.length <= 1) return [arr.slice()];
@@ -72,48 +72,46 @@ export function chooseStallColors(rng) {
   return { lanes, bricks: pick.bricks, rounds: pick.rounds };
 }
 
-// Geometry of the stall room. cell0/cell1 are horizontally adjacent.
-export function stallLayout(cell0, cell1, t) {
-  const dir = cell1.c > cell0.c ? 1 : -1;
-  const xL = Math.min(cell0.x, cell1.x) + t / 2;
-  const xR = Math.max(cell0.x, cell1.x) + cell0.w - t / 2;
-  const y0 = cell0.y + t / 2, y1 = cell0.y + cell0.h - t / 2;
+export const STALL_USED = COLOR_IDS.length * (LANE_W + BRICK_W);
+
+// Geometry of the stall hall. `b` is the hall interior {x0, y0, x1, y1, dir};
+// dir is the direction from the lanes toward the exit lane.
+export function stallLayout(b) {
+  const dir = b.dir;
+  const len = b.x1 - b.x0;
   const n = COLOR_IDS.length;
-  const used = n * (LANE_W + BRICK_W);
   // u runs from the far end (away from the exit) toward the exit.
-  const X = (u, w) => (dir > 0 ? xL + u : xR - u - w);
+  const X = (u, w) => (dir > 0 ? b.x0 + u : b.x1 - u - w);
   const lanes = [], bricks = [];
   for (let k = 0; k < n; k++) {
     lanes.push({ x: X(k * (LANE_W + BRICK_W), LANE_W), w: LANE_W });
     bricks.push({ x: X(k * (LANE_W + BRICK_W) + LANE_W, BRICK_W), w: BRICK_W });
   }
-  const exit = { x: X(used, xR - xL - used), w: xR - xL - used };
-  return { dir, xL, xR, y0, y1, lanes, bricks, exit };
+  const exit = { x: X(STALL_USED, len - STALL_USED), w: len - STALL_USED };
+  return { dir, xL: b.x0, xR: b.x1, y0: b.y0, y1: b.y1, lanes, bricks, exit };
 }
 
+// The course climbs and the purple rises from below like a flood, so the
+// brick columns hang from the ceiling (the racers are pushed up toward them)
+// and the lower part of every divider is solid.
 export function buildStalls(layout, colors, rng, t) {
   const { y0, y1, lanes, bricks } = layout;
   const H = y1 - y0;
-  const bricksTop = rng.chance(0.5);
   const span = Math.round(H * BRICK_SPAN);
   const rowH = span / BRICK_ROWS;
   const walls = [], barriers = [], spawns = [], dangerSources = [];
   bricks.forEach((b, k) => {
     for (let r = 0; r < BRICK_ROWS; r++) {
-      const y = bricksTop ? y0 + r * rowH : y1 - (r + 1) * rowH;
-      barriers.push(makeBarrier(b.x, y, b.w, rowH, colors.bricks[k], 1, 'stall'));
+      barriers.push(makeBarrier(b.x, y0 + r * rowH, b.w, rowH, colors.bricks[k], 1, 'stall'));
     }
-    // Solid separator for the rest of the height (merged into the room wall).
-    if (bricksTop) walls.push(makeWall(b.x, y0 + span, b.w, H - span + t / 2));
-    else walls.push(makeWall(b.x, y0 - t / 2, b.w, H - span + t / 2));
+    // Solid separator for the rest of the height (merged into the floor slab).
+    walls.push(makeWall(b.x, y0 + span, b.w, H - span + t / 2));
   });
   lanes.forEach((l, k) => {
-    const back = bricksTop ? y1 - 16 : y0 + 16;
-    const up = bricksTop ? -Math.PI / 2 : Math.PI / 2;
     // Aim at the brick side of the lane, never straight along it.
     const side = rng.chance(0.5) ? 1 : -1;
-    spawns.push({ id: colors.lanes[k], x: l.x + l.w / 2, y: back, angle: up + side * rng.range(0.35, 0.7) });
-    dangerSources.push({ x: l.x, y: bricksTop ? y1 - 14 : y0, w: l.w, h: 14 });
+    spawns.push({ id: colors.lanes[k], x: l.x + l.w / 2, y: y1 - 16, angle: -Math.PI / 2 + side * rng.range(0.35, 0.7) });
+    dangerSources.push({ x: l.x, y: y1 - 14, w: l.w, h: 14 });
   });
-  return { walls, barriers, spawns, dangerSources, bricksTop };
+  return { walls, barriers, spawns, dangerSources, bricksTop: true };
 }

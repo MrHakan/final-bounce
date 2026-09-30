@@ -19,49 +19,47 @@ export const CONTESTANTS = [
 export const COLOR_IDS = CONTESTANTS.map((c) => c.id);
 export const contestantById = (id) => CONTESTANTS.find((c) => c.id === id);
 
-// Course grid layout (logical px). Top band holds the HUD, bottom band is kept
-// clear because Instagram draws captions there.
+// Course layout constants (logical px). The top band holds the HUD, the bottom
+// band stays clear because Instagram draws captions there.
 export const LAYOUT = {
-  cols: 4,
-  cellW: 122,
-  cellH: 108,
-  originX: 26,
-  originY: 118,
-  bottomPad: 192,
-  wallT: 6,
+  wallT: 6,             // side walls
+  slabT: 12,            // floors / ceilings between halls
   contestantSize: 12,
+  topMargin: 118,
+  bottomMargin: 132,
 };
 
-export const MAP_LENGTHS = {
-  standard: { rows: 6 },   // fits the 9:16 frame (static camera)
-  long: { rows: 10 },      // taller than the frame (follow camera)
-};
-
-export const COMPLEXITY = {
-  low:    { route: [7, 8],   obstacle: 0.55, openDoor: 0.18 },
-  medium: { route: [8, 11],  obstacle: 0.8,  openDoor: 0.12 },
-  high:   { route: [10, 13], obstacle: 1.0,  openDoor: 0.08 },
-};
-export const LONG_COMPLEXITY = {
-  low:    { route: [10, 13] },
-  medium: { route: [13, 17] },
-  high:   { route: [17, 21] },
-};
-
-export const BARRIER_DENSITY = {
-  low:    { gates: [1, 2], roomBarriers: [0, 1] },   // + the starting stalls (all colours)
-  medium: { gates: [2, 3], roomBarriers: [1, 2] },
-  high:   { gates: [3, 4], roomBarriers: [2, 3] },
+// The tower: number of set-piece halls between the stalls and the finish, and
+// how many brick gates (besides the stalls and the final plug) close the way.
+// Everything else (stalls, plug, finish) is always present.
+export const TOWER = {
+  standard: {
+    mid:   { low: 2, medium: 3, high: 4 },
+    gates: { low: [1, 1], medium: [1, 2], high: [2, 3] },
+  },
+  long: {
+    mid:   { low: 5, medium: 7, high: 9 },
+    gates: { low: [2, 3], medium: [3, 4], high: [4, 5] },
+    // A long race lasts ~1.7x longer, so the purple's time-based ramp is flattened.
+    purple: { accel: 0.35, rate: 0.9 },
+  },
+  width: [380, 470],     // tower width range
 };
 
 // Purple pursuit, in geodesic course px. rate(t) = v0 + accel * (t - delay),
 // plus a catch-up term when the rearmost survivor gets too far ahead.
 export const DIFFICULTIES = {
-  // The purple waits for the starting-stall puzzle, then rises and accelerates.
-  easy:   { v0: 5, accel: 0.55, delay: 9.0, catchGap: 300, catchK: 0.2,  maxRate: 30 },
-  normal: { v0: 6, accel: 0.7,  delay: 8.0, catchGap: 260, catchK: 0.25, maxRate: 34 },
-  hard:   { v0: 7, accel: 0.85, delay: 7.0, catchGap: 220, catchK: 0.3,  maxRate: 40 },
-  chaos:  { v0: 8, accel: 1.0,  delay: 6.5, catchGap: 190, catchK: 0.35, maxRate: 46 },
+  // The purple crawls while the racers are still locked in their lanes, then
+  // closes in on the LAST racer: base rate + a catch-up term that grows with
+  // the distance between the front and the rearmost survivor.
+  //   delay   : seconds before the flood starts to rise
+  //   v0/accel: base rate (px/s) and its growth per second
+  //   catchGap: how far ahead of the front the last racer may be before the
+  //             front speeds up; catchK: px/s gained per px beyond that
+  easy:   { v0: 8,  accel: 0.4,  delay: 9,   catchGap: 60, catchK: 0.8, maxRate: 130 },
+  normal: { v0: 12, accel: 0.65, delay: 7,   catchGap: 36, catchK: 1.3, maxRate: 180 },
+  hard:   { v0: 13, accel: 0.75, delay: 7,   catchGap: 32, catchK: 1.4, maxRate: 190 },
+  chaos:  { v0: 14, accel: 0.85, delay: 6.5, catchGap: 30, catchK: 1.5, maxRate: 200 },
 };
 
 export const RACE_DEFAULTS = {
@@ -72,7 +70,7 @@ export const RACE_DEFAULTS = {
   barrierDensity: 'medium',
   mapLength: 'standard',
   weaponEnabled: true,
-  weaponKills: 2,          // 0 = unlimited
+  weaponKills: 1,          // 0 = unlimited
   raceMode: 'first',       // 'first' | 'survivors'
   coursePull: 1.0,         // strength of the course current (0 = pure billiards)
   finalHp: 0,              // 0 = auto (1-4 by difficulty/generation)
@@ -96,7 +94,7 @@ export const PHYSICS = {
 export const PRESETS = {
   short: {
     label: 'Short reel (20-30s)',
-    race: { complexity: 'low', difficulty: 'normal', barrierDensity: 'low', minDuration: 14, maxDuration: 31 },
+    race: { complexity: 'low', difficulty: 'normal', dangerSpeed: 1.2, barrierDensity: 'low', minDuration: 14, maxDuration: 31 },
   },
   medium: {
     label: 'Medium reel (25-40s)',
@@ -104,7 +102,7 @@ export const PRESETS = {
   },
   chaos: {
     label: 'Chaos',
-    race: { complexity: 'high', difficulty: 'chaos', barrierDensity: 'high', weaponKills: 0, coursePull: 1.15, contestantSpeed: 1.12, minDuration: 12, maxDuration: 40 },
+    race: { complexity: 'high', difficulty: 'chaos', barrierDensity: 'high', weaponKills: 2, coursePull: 1.15, contestantSpeed: 1.1, minDuration: 14, maxDuration: 42 },
   },
   close: {
     label: 'Close race',
@@ -116,7 +114,7 @@ export const PRESETS = {
   },
   long: {
     label: 'Long course (follow cam)',
-    race: { complexity: 'medium', mapLength: 'long', difficulty: 'normal', barrierDensity: 'medium', minDuration: 25, maxDuration: 60 },
+    race: { complexity: 'medium', mapLength: 'long', difficulty: 'normal', barrierDensity: 'medium', minDuration: 30, maxDuration: 72 },
   },
 };
 

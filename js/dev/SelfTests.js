@@ -44,7 +44,7 @@ function fingerprint(level) {
     bumpers: level.bumpers.map((b) => [r(b.x), r(b.y), r(b.r)]),
     barriers: level.barriers.map((b) => [r(b.x), r(b.y), b.color, b.hp]),
     spawns: level.spawns.map((s) => [s.id, r(s.x), r(s.y), r(s.angle), r(s.speed)]),
-    weapon: level.weapon, finish: level.finish, route: level.route.map((c) => [c.c, c.r, c.template]),
+    weapon: level.weapon, finish: level.finish, route: level.route.map((c) => [r(c.x), r(c.y), r(c.w), c.kind]),
   });
 }
 
@@ -86,7 +86,7 @@ export const TESTS = [
     for (let i = 0; i < 12; i++) {
       const l = generateLevel(seedFromIndex('VAR', i), cfg, { maxAttempts: 3 }).level;
       prints.add(fingerprint(l));
-      routes.add(l.route.map((c) => c.c + ',' + c.r).join(';'));
+      routes.add(l.layout + '|' + l.route.map((c) => Math.round(c.x) + ',' + Math.round(c.w)).join(';'));
     }
     return (prints.size === 12 && routes.size >= 10) || `unique maps ${prints.size}/12, unique routes ${routes.size}/12`;
   }],

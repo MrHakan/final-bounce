@@ -29,7 +29,7 @@ export function validateStructure(level) {
   }
   // Final barriers must exist and be reachable.
   const finals = level.barriers.filter((b) => b.role === 'final');
-  if (finals.length < 2) problems.push('final gate missing');
+  if (finals.length < 3) problems.push('final plug missing');
   for (const b of finals) if (!isFinite(f.distAt(b.x + b.w / 2, b.y + b.h / 2))) { problems.push('final gate unreachable'); break; }
   // Puzzle rule: every colour owns at least one gate. (A dead colour's gates
   // turn neutral in the simulation, so this can never softlock.)
@@ -39,15 +39,6 @@ export function validateStructure(level) {
   for (const w of level.walls) {
     if (w.w <= 0 || w.h <= 0) { problems.push('degenerate wall'); break; }
     if (w.x < -1 || w.y < -1 || w.x + w.w > level.width + 1 || w.y + w.h > level.height + 1) { problems.push('wall outside world'); break; }
-  }
-  // Barriers must not overlap solid walls in a way that hides them entirely.
-  // Course must be enclosed: the boundary of every route cell is walled or a door.
-  const cellKey = new Set(level.route.map((c) => c.c + ',' + c.r));
-  for (const cell of level.route) {
-    for (const [side, dc, dr] of [['N', 0, -1], ['S', 0, 1], ['W', -1, 0], ['E', 1, 0]]) {
-      const neighbour = (cell.c + dc) + ',' + (cell.r + dr);
-      if (cell.doors[side] && !cellKey.has(neighbour)) problems.push('door leads outside course');
-    }
   }
   // Danger must not start on top of the contestants.
   if (level.params.danger.delay < 0.8) problems.push('danger delay too short');

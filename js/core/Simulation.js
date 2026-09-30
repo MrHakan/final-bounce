@@ -15,6 +15,9 @@ import { circleRect, circleCircle, contact } from '../physics/Collision.js';
 // from its centre (i.e. it could not be pushed out of the way).
 const CRUSH = 0.25;
 
+// How strongly a racer in a stall ricochets toward an open hole ahead of it.
+const STALL_BIAS = 0.7;
+
 const MAJOR = new Set(['weaponPickup', 'kill', 'dangerDeath', 'nearMiss', 'barrierBreak', 'finalBreak',
   'finish', 'leadChange', 'weaponBreak', 'weaponLost', 'antiStuck', 'orphan', 'raceEnd']);
 
@@ -53,6 +56,11 @@ export class Simulation {
     this.minDangerGapByLate = {};
     this.lastNx = 0; this.lastNy = 0;
     this.stallRect = level.stallRect || null;
+    // Stall columns: the brick column ahead of each lane, for hole-seeking bounces.
+    this.stallGeo = level.stallGeo || null;
+    this.stallCols = this.stallGeo
+      ? this.stallGeo.bricks.map((b) => this.barriers.filter((bar) => bar.role === 'stall' && Math.abs(bar.x - b.x) < 0.5))
+      : null;
   }
 
   emit(type, data) {
@@ -212,11 +220,38 @@ export class Simulation {
     }
   }
 
+  // Inside the stalls there is no course bias (racers must hit the bricks on
+  // both sides of their lane) EXCEPT once the brick column ahead has a hole:
+  // then the racer ricochets toward it, so an opened puzzle does not stall.
+  stallBias(c) {
+    const geo = this.stallGeo;
+    if (!geo) return;
+    let lane = -1;
+    for (let k = 0; k < geo.lanes.length; k++) if (c.x >= geo.lanes[k].x && c.x <= geo.lanes[k].x + geo.lanes[k].w) { lane = k; break; }
+    if (lane < 0) return;
+    let best = null, bd = Infinity;
+    for (const bar of this.stallCols[lane]) {
+      if (bar.alive) continue;
+      const d = Math.abs(bar.y + bar.h / 2 - c.y);
+      if (d < bd) { bd = d; best = bar; }
+    }
+    if (!best) return;
+    const tx = best.x + best.w / 2 - c.x, ty = best.y + best.h / 2 - c.y;
+    const tl = Math.hypot(tx, ty) || 1;
+    const l = Math.hypot(c.vx, c.vy) || 1;
+    const k = STALL_BIAS;
+    let dx = (c.vx / l) * (1 - k) + (tx / tl) * k, dy = (c.vy / l) * (1 - k) + (ty / tl) * k;
+    const away = dx * this.lastNx + dy * this.lastNy;
+    if (away < 0.15) { dx += this.lastNx * (0.15 - away); dy += this.lastNy * (0.15 - away); }
+    c.vx = dx; c.vy = dy;
+  }
+
   // Course-biased ricochet: after a bounce the outgoing direction is blended
   // toward the local course direction. Motion between bounces stays straight.
   bounceBias(c) {
+    if (this.inStall(c)) { this.stallBias(c); return; }
     const b = this.params.bounceBias;
-    if (b <= 0 || this.inStall(c)) return;
+    if (b <= 0) return;
     const f = this.field;
     const i = f.idxAt(c.x, c.y);
     const fx = f.flowX[i], fy = f.flowY[i];
@@ -312,7 +347,7 @@ export class Simulation {
     c.dangerGap = gap;
     if (dz.dist <= 0) return;
     if (gap < c.r) {
-      const fx = f.flowX[i], fy = f.flowY[i];
+      const fx = f.pushX[i], fy = f.pushY[i];
       if (fx !== 0 || fy !== 0) {
         const push = Math.min(3, c.r - gap);
         c.x += fx * push; c.y += fy * push;
@@ -378,7 +413,7 @@ export class Simulation {
     c.progress = 1; c.maxProgress = 1;
     this.finishOrder.push(c.id);
     c.place = this.finishOrder.length;
-    this.emit('finish', { actor: c.id, place: c.place, x: c.x, y: c.y });
+    this.emit('finish', { actor: c.id, place: c.place, x: c.x, y: c.y, gap: this.danger.active ? c.dangerGap : Infinity });
     if (!this.winner) {
       this.winner = c.id;
       if (this.params.raceMode === 'first') this.scheduleEnd(PHYSICS.postWinSeconds, 'winner');

@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Level gallery</title>
+<style>body{margin:0;background:#0d0e11;color:#ddd;font:11px monospace}#g{display:flex;flex-wrap:wrap;gap:6px;padding:6px}
+figure{margin:0}figcaption{padding:2px 0}canvas{display:block;width:var(--w,280px);height:var(--h,498px)}</style></head>
+<body><div id="g"></div>
+<script type="module">
+// Developer tool: contact sheet of generated courses.
+//   gallery.html?preset=medium&n=12&start=0&prefix=G&t=0
+// t > 0 simulates that many seconds first (shows purple, racers, broken bricks).
+import { generateLevel } from '../js/generation/LevelGenerator.js';
+import { resolveRaceConfig, VIEW_DEFAULTS } from '../js/config/presets.js';
+import { Simulation } from '../js/core/Simulation.js';
+import { Renderer } from '../js/rendering/Renderer.js';
+import { Camera } from '../js/rendering/Camera.js';
+import { courseBounds } from '../js/core/Game.js';
+import { seedFromIndex } from '../js/core/RNG.js';
+await document.fonts.ready;
+const q = new URLSearchParams(location.search);
+const preset = q.get('preset') || 'medium', n = +(q.get('n') || 12), start = +(q.get('start') || 0), prefix = q.get('prefix') || 'G', t = +(q.get('t') || 0);
+const cfg = resolveRaceConfig(preset, JSON.parse(q.get('o') || '{}'));
+const host = document.getElementById('g');
+const big = document.createElement('canvas');
+const r = new Renderer(big);
+const info = [];
+for (let i = 0; i < n; i++) {
+  const seed = q.get('seed') || seedFromIndex(prefix, start + i);
+  const g = generateLevel(seed, cfg, { forceTestRun: true });
+  if (!g.level) { info.push({ seed, none: true }); continue; }
+  r.setLevel(g.level);
+  const sim = new Simulation(g.level);
+  while (sim.time < t && !sim.ended) sim.step();
+  const cam = new Camera();
+  cam.setWorld(g.level.width, g.level.height, courseBounds(g.level), false);
+  cam.closeCam = false;
+  cam.update(sim, 'static', 0, true);
+  r.draw({ sim, alpha: 1, camera: cam, view: { ...VIEW_DEFAULTS, hud: false, trails: false }, particles: null, pres: null, pulse: 0, clock: 0 });
+  const fig = document.createElement('figure');
+  const c = document.createElement('canvas'); c.width = 460; c.height = 818;
+  c.getContext('2d').drawImage(big, 0, 0, c.width, c.height);
+  const cap = document.createElement('figcaption');
+  const res = g.result;
+  cap.textContent = `${seed} a${g.attempts} ${res ? (res.winner || '-') + ' ' + res.duration.toFixed(0) + 's' : ''} sc${g.score ? g.score.score : '-'}`;
+  fig.append(c, cap); host.append(fig);
+  info.push({ seed, attempts: g.attempts, dur: res && res.duration, winner: res && res.winner });
+}
+window.__info = info; window.__done = true;
+</script></body></html>

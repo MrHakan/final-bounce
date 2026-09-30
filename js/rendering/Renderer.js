@@ -441,7 +441,7 @@ export class Renderer {
     ctx.stroke();
     ctx.font = '8px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     for (const c of level.route) {
-      const label = `${c.index} ${c.stage} ${c.template}`;
+      const label = `${c.index} ${c.kind}${c.gate ? ' +' + c.gate : ''}`;
       ctx.fillStyle = 'rgba(0,0,0,0.65)';
       ctx.fillRect(c.x + 3, c.y + 3, label.length * 4.9 + 4, 10);
       ctx.fillStyle = '#ffe600';

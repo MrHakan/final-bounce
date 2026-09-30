@@ -259,8 +259,40 @@ export function buildCourseField(level, radius) {
     if (len > 1e-6) { flowX[i] = sx / len; flowY[i] = sy / len; }
   }
 
+  // Purple push direction: the normal of the purple front, i.e. the gradient of
+  // the distance-from-source field (pointing away from the purple). Unlike the
+  // course flow it never points sideways into a wall when the purple rises in a
+  // lane, so a racer is only crushed when it truly has nowhere to go.
+  const pushX = new Float32Array(n), pushY = new Float32Array(n);
+  {
+    const rawX = new Float32Array(n), rawY = new Float32Array(n);
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const i = y * cols + x, c = distS[i];
+      if (!isFinite(c)) continue;
+      const v = (j) => (isFinite(distS[j]) ? distS[j] : c);
+      const gx = v(x < cols - 1 ? i + 1 : i) - v(x > 0 ? i - 1 : i);
+      const gy = v(y < rows - 1 ? i + cols : i) - v(y > 0 ? i - cols : i);
+      const l = Math.hypot(gx, gy);
+      if (l > 1e-6) { rawX[i] = gx / l; rawY[i] = gy / l; }
+    }
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const i = y * cols + x;
+      if (!isFinite(distS[i])) continue;
+      let sx = 0, sy = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const tx = x + dx, ty = y + dy;
+        if (tx < 0 || ty < 0 || tx >= cols || ty >= rows) continue;
+        const j = ty * cols + tx;
+        if (!isFinite(distS[j])) continue;
+        sx += rawX[j]; sy += rawY[j];
+      }
+      const l = Math.hypot(sx, sy);
+      if (l > 1e-6) { pushX[i] = sx / l; pushY[i] = sy / l; } else { pushX[i] = flowX[i]; pushY[i] = flowY[i]; }
+    }
+  }
+
   return {
-    ok: true, tile: TILE, cols, rows, floor, free, distS, distF, danger, flowX, flowY,
+    ok: true, tile: TILE, cols, rows, floor, free, distS, distF, danger, flowX, flowY, pushX, pushY,
     totalLength, freeCount, unreachable, startIdx, idxAt,
     distAt(x, y) { return distS[idxAt(x, y)]; },
     progressAt(x, y) {

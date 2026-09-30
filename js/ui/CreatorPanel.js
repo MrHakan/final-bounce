@@ -160,8 +160,7 @@ export class CreatorPanel {
     this.writeConfig(g.raceConfig);
     const parts = [
       `Seed <b class="mono">${g.seed}</b>`,
-      `${g.level.route.length} sections`,
-      `style ${g.level.style}`,
+      `${g.level.route.length} halls`,
       `${gen.attempts} attempt${gen.attempts > 1 ? 's' : ''}`,
     ];
     if (gen.ms !== undefined) parts.push(`${gen.ms} ms`);
