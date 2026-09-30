@@ -78,6 +78,25 @@ export async function probeFormats({ fps = 60, bitrate = 12e6, includeHidden = f
   return out;
 }
 
+// Fingerprint of a soundtrack: FNV-1a over its loudness envelope (RMS per 50 ms in
+// 0.25 dB steps). Hashing raw samples would not work: Chromium sums three or more
+// simultaneous voices in a varying order, so two renders of the same race differ by
+// float rounding (~1e-7, about -140 dBFS, far below 16-bit or Opus noise). The
+// envelope is immune to that and still changes with any real change of the mix.
+function fingerprint(buffer) {
+  const win = Math.round(buffer.sampleRate * 0.05);
+  const L = buffer.getChannelData(0), R = buffer.getChannelData(buffer.numberOfChannels - 1);
+  let h = 2166136261;
+  for (let off = 0; off < L.length; off += win) {
+    const end = Math.min(L.length, off + win);
+    let s = 0;
+    for (let i = off; i < end; i++) s += L[i] * L[i] + R[i] * R[i];
+    const db = 10 * Math.log10(s / (2 * (end - off)) + 1e-12);
+    h ^= Math.round(db * 4) + 1000; h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
 const yieldToUI = () => new Promise((resolve) => {
   const ch = new MessageChannel();
   ch.port1.onmessage = () => resolve();
@@ -192,6 +211,7 @@ export async function exportVideo(game, audio, opts = {}) {
     const at = (t) => intensities[Math.max(0, Math.min(intensities.length - 1, Math.floor(t * fps)))] ?? 0.2;
     mixer.setMusic(goTime ?? 0, Math.max(goTime ?? 0, totalSeconds - 0.1), at);
     const buffer = await mixer.render(totalSeconds);
+    const audioFingerprint = fingerprint(buffer);
     aborted();
     const aenc = new AudioEncoder({
       output: (chunk, meta) => audioChunks.push({ chunk, meta, ts: chunk.timestamp }),
@@ -231,7 +251,7 @@ export async function exportVideo(game, audio, opts = {}) {
     return {
       blob, container: fmt.container, mime: blob.type, formatId: fmt.id, label: fmt.label,
       videoCodec: vchoice.codec, audioCodec: fmt.audio.codec, duration: totalSeconds, frames: frameIdx, fps,
-      hasAudio: true, size: blob.size, renderSeconds: (performance.now() - t0) / 1000, exact: true,
+      hasAudio: true, size: blob.size, renderSeconds: (performance.now() - t0) / 1000, exact: true, audioFingerprint,
     };
   } finally {
     offSounds(); offGo(); offDone();

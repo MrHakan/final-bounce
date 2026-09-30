@@ -453,9 +453,11 @@ export class CreatorPanel {
     $('renderProg').hidden = false; $('renderChip').hidden = false;
     const stageText = { video: 'Rendering frames', audio: 'Rendering soundtrack', mux: 'Writing file', done: 'Done' };
     let out = null;
-    try {
-      out = await exportVideo(g, this.audio, {
-        format, fps: Number($('recFps').value), bitrate: Number($('recBitrate').value), signal: this.abort.signal,
+    // If an encoder fails (e.g. a hardware H.264 encoder that probed as supported), retry
+    // with the next format instead of just failing.
+    const queue = [format, ...this.formats.filter((f) => f !== format)];
+    const attempt = async (fmt) => exportVideo(g, this.audio, {
+        format: fmt, fps: Number($('recFps').value), bitrate: Number($('recBitrate').value), signal: this.abort.signal,
         onProgress: (p) => {
           const pct = Math.round(p.fraction * (p.stage === 'video' ? 92 : p.stage === 'audio' ? 95 : 100));
           $('renderBar').style.width = `${pct}%`;
@@ -465,6 +467,15 @@ export class CreatorPanel {
             : `${stageText[p.stage]}…`;
         },
       });
+    try {
+      for (let k = 0; k < queue.length; k++) {
+        try { out = await attempt(queue[k]); break; }
+        catch (err) {
+          if ((err && err.name === 'AbortError') || k === queue.length - 1) throw err;
+          console.warn('Export with', queue[k].label, 'failed:', err);
+          this.toast(`${queue[k].label} failed (${err.message || err}). Trying ${queue[k + 1].label}…`);
+        }
+      }
       out.filename = `final-bounce-${g.seed}-${g.gen.result && g.gen.result.winner ? g.gen.result.winner : 'none'}.${out.container}`;
       this.lastVideo = out;
       $('exportBox').hidden = false;

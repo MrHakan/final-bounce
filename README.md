@@ -1,12 +1,17 @@
 # Final Bounce — procedural survival race simulator
 
-Four coloured squares (red, blue, yellow, green) ricochet through a procedurally
-generated course while a purple field eats the map behind them. Nobody steers.
-Whoever reaches the finish first wins, if anyone does.
+Four coloured squares (red, blue, yellow, green) start locked in separate lanes at
+the bottom of a tower. A purple flood rises from below. Each colour can only break
+bricks of its own colour, so the racers need each other to get out. Then they
+ricochet up a snaking tower of halls (pinball fields, slaloms, a blade armory,
+brick gates, a narrow sprint corridor) toward a finish room behind a grey plug wall,
+while the flood closes in on the last of them. Nobody steers. Whoever reaches the
+finish first wins, if anyone does.
 
 The project is a small **content engine** for vertical video: every seed is one
 reproducible episode that can be previewed, replayed exactly, scored for drama,
-and recorded straight to a 1080×1920 video with sound for Instagram Reels.
+and rendered straight to a frame-perfect 1080×1920 video with sound (a procedural
+score included) for Instagram Reels.
 
 It is a static site (HTML + CSS + JavaScript modules, Canvas 2D, Web Audio).
 There is no build step, no backend and no runtime dependency.
@@ -52,42 +57,43 @@ branch → `main` / `(root)`*. This works because the site needs no build.
 ## Workflow
 
 ```
-GENERATE → WATCH → (REPLAY) → RECORD → DOWNLOAD → NEW SEED
+GENERATE → WATCH → (REPLAY) → RENDER → DOWNLOAD → NEW SEED
 ```
 
 1. Enter a seed or press **Random seed** / **New seed**. The page URL updates to
    `?seed=…&preset=…`, so the address bar is always a share link.
-2. **Play** runs the intro (“WHO WILL SURVIVE?”, ~1 s), the countdown
-   (3-2-1-GO, ~1.2 s), the race, a short slow-motion moment when someone
-   finishes, and the result card (~1.8 s).
+2. **Play** starts the race at once, with a short title over the first seconds
+   ("WHO ESCAPES THE FLOOD?" and a line explaining the bricks). A slow-motion
+   moment when someone finishes is followed by the result card (~1.8 s). The old
+   blocking intro card and 3-2-1 countdown are still available in *View*.
 3. **Replay** re-runs the same seed and config. The result is identical.
-4. **Record race** resets the race, records the whole episode, stops by itself
-   after the result card, and offers the file for download.
-5. **Generate interesting race** (or **Auto generate + record**) tests up to
-   *N* random seeds headless, scores each one, and loads the best (or the first
-   that reaches the target score).
+4. **Render video** produces the file (see *Video export*). It is frame-perfect and
+   does not need the tab to be visible. **Live capture** is the real-time fallback.
+5. **Generate interesting race** tests up to *N* random seeds headless, scores each
+   one, and loads the best (or the first that reaches the target score).
+   **Auto: find race + render** does both and can repeat it (**Batch**) to produce
+   several different videos in a row.
 
 ### Controls
 
 | Area | Controls |
 | --- | --- |
-| Transport | Play / Pause, Restart, Replay, New seed, Close cam toggle, speed ¼× ½× 1× 2× 4× 8× (8× is for testing; recording always runs at 1×) |
+| Transport | Play / Pause, Restart, Replay, New seed, Close cam toggle, speed ¼× ½× 1× 2× 4× 8× (8× is for testing; exports always use exact 1× time) |
 | Seed & course | seed field, Load, Random seed, Copy seed, Copy link, preset, Regenerate same seed |
 | Interesting race | minimum score, maximum candidates, Generate interesting race |
 | Race settings | difficulty (Easy/Normal/Hard/Chaos), race mode (First wins / Survivors finish), map complexity, barrier density, map length, final wall HP, purple speed, contestant speed, course pull, blade kills, blade on/off, reject bad races |
-| View | camera (Auto/Static/Follow pack/Follow leader), close camera, particles, trails, camera shake, text overlays, HUD, intro, countdown, death markers, safe-area guide, debug view |
-| Sound | master volume, effects volume, mute, test sound |
-| Record Reel | frame rate (60/30), quality, format (only formats this browser supports are listed), auto-download, Record race, Stop, Auto generate + record, Download video, Convert to MP4 |
+| View | camera (Auto/Static/Follow pack/Follow leader), close camera, particles, trails, camera shake, text overlays, HUD, title over the start, intro card, countdown, death markers, safe-area guide, debug view, end text |
+| Sound | master, effects and music volume, mute, test sound |
+| Export video | frame rate (60/30), quality, format (only formats this browser can encode), Render video, Cancel, Auto: find race + render, Batch, Download, Copy caption, Convert to MP4 (only when the file is WebM), Live capture |
 | Cover image | moment (current/start/middle/finish), overlay text, Capture cover (1080×1920 PNG) |
 | Race report | result table, entertainment score breakdown, live event log |
 | Developer | self-tests, `testSeeds(100/500/1000)` |
 
 Keyboard: `Space` play/pause · `R` restart · `N` new seed · `G` interesting race · `D` debug view · `C` close camera.
 
-Presets: **Short reel** (aims for 15–25 s), **Medium reel** (25–40 s), **Chaos**,
-**Close race**, **Hard pursuit**, **Long course** (taller than the frame; the
-camera follows). Target durations are aims, not guarantees. The race is never
-scripted.
+Presets: **Short reel** (aims for 20–30 s), **Medium reel** (25–40 s), **Chaos**,
+**Close race**, **Hard pursuit**, **Long course** (a much taller tower; 45–70 s).
+Target durations are aims, not guarantees. The race is never scripted.
 
 ## Seeds and determinism
 
@@ -132,36 +138,46 @@ differently in another browser family.
   racers never ping-pong forever between parallel walls. If a racer stays inside
   a 2.5-body box for 4 s, its velocity is rotated a deterministic amount. It is
   never teleported.
-- **Starting stalls (puzzle).** Every race starts with the four racers
-  locked in their own narrow lanes. The lanes are separated by columns of
-  coloured bricks; the last column opens onto the exit lane. Only the matching
-  colour can break a brick, and each brick in a column breaks on its own. The
-  brick colours are chosen by a small solver so the stall is always solvable,
-  always chained, and never lets the racer beside the exit leave on its own.
+- **Starting stalls (puzzle).** Every race starts with the four racers locked in
+  their own narrow lanes at the bottom of the tower. The lanes are separated by
+  columns of coloured bricks (hanging from the ceiling; the lower part of every
+  divider is solid); the last column opens onto a compact exit lane. Only the
+  matching colour can break a brick, and each brick in a column breaks on its own.
+  The brick colours come from a small solver: the stall is always solvable, always
+  chained (2+ rounds), and never lets the racer beside the exit leave on its own.
   Example: BLUE opens the way for YELLOW, YELLOW frees RED, and nobody leaves
-  until RED opens the exit. The purple rises from the back of every lane.
-- **Colour gates.** Some doorways further down the course are closed by
-  columns of single-colour bricks.
+  until RED opens the exit. Inside the stalls there is no course bias, so racers
+  hit the bricks on both sides, except that a racer whose next brick column has an
+  open hole ricochets toward it (otherwise a solved puzzle took ~35 s to clear).
+- **Colour gates.** Some halls further up are closed by a full-height wall of
+  same-colour bricks. Only that colour can open it, and everyone waits for it.
 - **Every contact is a collision.** A racer bounces back even when it breaks
   a block of its own colour. When a colour is eliminated, its blocks turn into
   1-HP grey blocks, so a dead colour can never softlock the course.
-- **Final grey wall.** Neutral blocks in front of the finish room. Any racer
-  damages them (1–4 HP, cracks show the damage).
+- **The grey plug.** The shaft into the finish room is filled with 1–3 layers of
+  three grey blocks each (1–2 HP). Any racer damages them; cracks and chipped
+  corners show the damage.
 - **Blade.** The first living racer to touch it carries it. An armed racer
   eliminates an unarmed one on contact. Two armed racers would bounce. By
-  default the blade shatters after 2 kills (configurable, or unlimited). If the
-  carrier dies, the blade is lost.
-- **Purple pursuit.** The purple field is not a shape sliding across the
-  screen. It is a threshold on **geodesic course distance**: distance from the
-  back of the start room, measured through the corridors. That way it follows
-  the route through every turn. Its front advances at
-  `rate(t) = (v0 + a·(t − delay)) · scale`, plus a catch-up term when every
-  survivor is far ahead. The catch-up term is capped so it never outruns the
-  racers. The purple is **solid**: touching it bounces a racer and pushes it
-  down the course, and it fills each section completely as it advances. A racer
-  dies only when it is **crushed**, meaning the purple keeps coming but a wall,
-  a closed gate or a dead end stops the racer from being pushed any further.
-  Coming within 1.5 body-widths logs a near miss.
+  default the blade shatters after **1 kill** (configurable to 2, 3 or unlimited).
+  If the carrier dies, the blade is lost.
+- **Purple pursuit.** The purple field is not a shape sliding across the screen.
+  It is a threshold on **geodesic course distance**: distance from the back of
+  every stall lane, measured through the halls, so it follows the route through
+  every turn. Its front advances at a base rate
+  `(v0 + a·(t − delay)) · scale` plus a **catch-up term** that grows with the
+  distance between the front and the *last* surviving racer. That makes it crawl
+  while the racers are still locked in the stalls and then close in on whoever
+  falls behind (at a gate, in the plug), instead of killing everyone early. The
+  difficulty levels are a ladder of these parameters (about 0.3 / 0.7 / 1.3 / 1.7
+  purple deaths per race).
+  The purple is **solid**: touching it bounces a racer and shoves it **along the
+  normal of the purple's own front** (the gradient of its distance field), never
+  along the course flow, which points sideways inside a lane. The gap is sampled
+  bilinearly so it changes smoothly as a racer moves. A racer dies only when it is
+  **crushed**: the purple keeps coming but a wall, a closed gate, the plug or
+  another racer stops it from being pushed any further. Coming within 1.5
+  body-widths logs a near miss.
 - **Finish.** A racer finishes when its centre enters the checkered zone.
   *First wins* ends the race 0.6 s after the first finisher. *Survivors finish*
   runs until everyone has finished or died, or until the timeout.
@@ -173,79 +189,78 @@ event log and the stats panel subscribe to these. Gameplay code never calls them
 
 ## Procedural generation
 
-Maps are *random but structured*:
+Maps are *designed, then varied*: "the flooded tower". The generator does not
+scatter obstacles. It plans a sequence of halls with a purpose each, and every seed
+varies the plan, the proportions and the contents.
 
-1. **Route skeleton.** A self-avoiding walk over a 4-column grid (6 rows for
-   the 9:16 frame, 10 rows for long courses), in one of several styles
-   (wander, snake, zigzag, corridor, spiral). Consecutive cells are linked by
-   doors. Every other cell boundary is solid wall. The course is a chain
-   START → … → FINISH, which forms straights, L-turns, U-turns, S-bends and
-   merged open rooms.
-2. **Stages** along the route: start, colour section, bounce section, power
-   room, pursuit section, chaos section, final gate, finish.
-3. **Section templates** decorate each cell given its entry/exit connectors:
-   `ARENA`, `PINBALL`, `PILLARS`, `ZIGZAG`, `PARALLEL_LANES`, `CHOKEPOINT`,
-   `FUNNEL`, `CORNER`, `POWERUP_ROOM`, plus colour gates and the final gate.
-   Every piece goes through a fit check that keeps door approaches clear and
-   forbids gaps narrower than a racer.
-4. **Placement**: the starting stalls in the first two cells (lane order and
-   brick colours from the stall solver), single-colour brick gates in some
-   later doorways, the blade in a contested
-   room at 30–55 % of the route, free-standing colour blocks, 2–6 grey final
-   blocks in 1–2 layers, the finish zone, and a 2×2 spawn with colours
-   shuffled across the slots.
-5. **Bounded mutation** of obstacle positions and sizes.
-6. **Course field** on a 4 px grid: configuration space (where a racer's centre
-   fits), Dijkstra distances from start and to finish, normalised progress
-   `distS / (distS + distF)`, the organic purple threshold, and the flow
-   direction.
-7. **Validation.** Structural checks: spawns free and not overlapping, finish,
-   blade, every door and the final gate reachable by a racer-sized body, gates
-   multi-coloured, walls inside the world, no large sealed pockets. Then a
-   **headless test race** rejects layouts where everyone dies almost
-   immediately, nobody passes 30 % of the course, the race times out, there is
-   no winner, or the duration falls outside the preset's range.
-8. On rejection, the next attempt stream of the same seed is tried (up to 14).
-   The seed → course mapping stays a pure function.
+1. **Plan** (`LevelGenerator.planTower`). A director picks the halls between the
+   stalls and the finish (2 / 3 / 4 halls for low / medium / high complexity, 5 / 7 / 9
+   for long courses) along an intensity curve: early halls let the pack regroup
+   (plinko, slalom, pillars, lanes), middle halls add obstacles (funnels, lanes),
+   late halls add pressure. It places exactly one **blade armory** in the first
+   half, usually a **sprint corridor** right before the plug, and a number of
+   **brick gates** by barrier density (every sprint corridor gets one: that is
+   where the purple catches the slow). Gate colours cycle through the four colours.
+2. **Geometry.** Halls are stacked bands. Every band's ends alternate left/right,
+   so the course snakes upward; each door sits at the end of a hall where the next
+   one begins. Tower width (380–470 px), hall lengths (78–100 % of the space
+   left), heights, door widths and the stall side vary per seed, so silhouettes
+   differ. The slab before the finish is thick enough to hold the plug.
+3. **Set pieces** (`Pieces.js`): `SCATTER` (diamond plinko grid or scattered
+   bumpers), `SLALOM` (alternating baffles with bumpers in the gaps), `PILLARS`,
+   `LANES` (a divider forming two lanes), `FUNNEL` (a wide mouth, then a tight
+   neck), `ARMORY` (the blade in a ring of bumpers, with cover), `SPRINT` (a 44–50 px
+   corridor) and brick gates. Every shape passes a fit check that keeps ≥ 20 px of
+   clear space to walls, other shapes and both doors, so nothing is ever too narrow
+   for a racer or blocks a doorway.
+4. **Course field** on a 4 px grid: configuration space (where a racer's centre
+   fits), Dijkstra distances, normalised progress `distS / (distS + distF)`, the
+   organic purple threshold, the flow direction and the purple's push normal.
+5. **Validation.** Structural checks (spawns free and separate, finish, blade,
+   every door and the plug reachable by a racer-sized body, walls inside the
+   world, every colour present in the stalls, no large sealed pockets), then a
+   **headless test race** rejects layouts where everyone dies almost immediately,
+   nobody passes 30 % of the course, the race times out, there is no winner, or
+   the duration falls outside the preset's range.
+6. On rejection, the next attempt stream of the same seed is tried (up to 14). The
+   seed → course mapping stays a pure function. Measured over 150 seeds per preset,
+   the average is 0.06–0.3 extra attempts per seed (it was 1.4–3.4 with the old
+   generator).
 
-**Dynamic balancing**: short routes get busier rooms, and long routes get a
-slightly slower purple field. Barrier-heavy maps and double-layer final walls
-get lower grey HP. The blade room gets a ring of bumpers around the blade.
+**Progress** (0 → 1) comes from the geodesic field, not from Y position. It drives
+the purple field, leader detection, the HUD progress bar, the follow camera and
+scoring.
 
-**Progress** (0 → 1) comes from the geodesic field, not from Y position, so it
-works for courses that twist in any direction. It drives the purple field,
-leader detection, the HUD progress bar, the follow camera and scoring.
+The tools in `tests/` (see *Testing*) exist because this was tuned with data: for
+example, an early version killed 81 % of racers inside the stalls, which turned
+out to be two bugs in the crush rule, and the stall puzzle took 35 s to clear
+until racers were taught to seek open holes.
 
 ## Entertainment score
 
-After the headless run, each race gets a 0–100 score.
+After the headless run, each race gets a 0–100 score. Every part is capped so one
+noisy statistic cannot saturate it, and the raw sum is stretched so a typical race
+scores about 60 and only races with tension, conflict *and* a dramatic finish
+reach 80+.
 
-Points are added for:
-- a blade pickup (more if it comes early)
-- kills
-- eliminations after the opening seconds
-- near misses that the racer survives
-- lead changes
-- barrier destruction and the final wall breaking
-- several racers reaching the late stage
-- a close finish, and a winner who barely escaped the purple
-- a duration inside the preset's target range
+| Part | Max | Rewards |
+| --- | --- | --- |
+| pacing | 8 | duration inside the preset's target range |
+| tension | 20 | near misses that the racer survived, and how close the closest was |
+| conflict | 21 | blade pickup (earlier is better), kills, racers crushed after the opening |
+| finish | 16 | runner-up close behind; winner barely ahead of the purple |
+| turnover | 8 | the lead changing hands |
+| puzzle | 6 | gates opened, the plug dug through |
+| depth | 8 | several racers reaching the late tower |
 
-Points are taken off for:
-- an instant wipe
-- no winner
-- no progress
-- anti-stuck interventions
-- a timeout
-- long stretches with nothing happening
-- a wire-to-wire leader with no lead changes
-
-The breakdown is shown in the race report (creator UI only).
+Penalties: an instant wipe, no winner, no progress, anti-stuck interventions, a
+timeout, dead air (more than 5 s without a notable event) and one racer leading
+wire to wire. The breakdown is shown in the race report (creator UI only).
 
 **Generate interesting race** samples random seeds, simulates each one without
-rendering, keeps the best, and stops at the target score or the candidate limit
-(default 50). It shows `Testing races… 18 / 50` and then the selected seed and
-its score.
+rendering, keeps the best, and stops at the target score (default 70) or the
+candidate limit (default 50). It shows `Testing races… 18 / 50`, then the selected
+seed and its score.
 
 ## Visual style
 
@@ -254,7 +269,9 @@ an app. Everything on the canvas has a gameplay job:
 
 - **Surround**: dark charcoal with an almost invisible diagonal hatch.
 - **Course**: pale cool-grey floor with a faint 24 px grid, cream walls with
-  thin charcoal outlines, flat bumpers. The finish is a flat checkerboard.
+  thin charcoal outlines, flat bumpers. The finish is a flat checkerboard. The
+  static level is drawn as vector shapes culled to the visible window, so edges
+  stay crisp at the 2.4× close camera and a frame costs about 5 ms.
 - **Racers**: 12 px flat squares with a thin dark border and a short tapering
   translucent trail (drawn under the walls).
 - **Purple**: solid dark purple on the 4 px tile grid (stepped edge kept on
@@ -269,15 +286,19 @@ an app. Everything on the canvas has a gameplay job:
   when armed; `#1` when finished), and a thin race timeline showing the purple
   progress, racer markers and a checkered finish tick. The course scrolls
   under the strip in follow mode.
+- **Title over the start**: for the first ~2.4 s, `WHO ESCAPES THE FLOOD?` with a
+  smaller line, `EACH COLOR BREAKS ONLY ITS OWN BRICKS`, so a new viewer understands
+  the stalls at once. It fades in over 180 ms and never blocks the race.
 - **Messages**: one line of condensed text such as `YELLOW GOT THE BLADE`. The
   name is in the racer's colour and the rest is off-white, with a thin dark
   outline and no box. It fades in over ~120 ms and lasts ~1 s.
 - **Ending**: the scene dims and the final state stays visible. The text is
-  `YELLOW WINS`, then `TIME`, `KILLS` and `SEED` in small mono. It reveals over
+  `YELLOW WINS`, then `TIME`, `KILLS` and `SEED` in small mono, and an optional
+  end line (default `WHO WINS THE NEXT ONE?`, editable in *View*). It reveals over
   300 ms. There are no banners, crowns or trophies.
-- **Composition**: the course is top-aligned under the HUD and never scaled
-  above 1.3×. Courses using less than ~80 % of the frame width sit on the left
-  and leave negative space on the right, where Instagram's buttons are.
+- **Composition**: in the static camera the course is top-aligned under the HUD
+  and never scaled above 1.3×; courses using less than ~80 % of the frame width sit
+  on the left and leave negative space on the right, where Instagram's buttons are.
 - **Close camera** (optional, on by default; `Close cam` button, View →
   *Close camera*, or the `C` key): with the Auto camera, every course is
   followed up close (2.4×, never further than 1.7×) on the main group of
@@ -291,44 +312,81 @@ an app. Everything on the canvas has a gameplay job:
   are bundled in `assets/fonts/` (SIL OFL), so recordings look the same on
   every machine. The page waits for them before drawing the first frame.
 
-## Recording and export
+## Video export
 
-- The recorder captures **only the simulation canvas**
-  (`canvas.captureStream(fps)`) plus the Web Audio mix. The audio graph feeds
-  both the speakers and a `MediaStreamAudioDestinationNode`. Creator UI, debug
-  panels, cursor and browser chrome are never in the video. The debug overlay
-  and safe-area guide appear in the video only if you switch them on.
-- Output is 1080×1920 at 60 or 30 fps. The container and codec are picked with
-  `MediaRecorder.isTypeSupported()`, in this order:
-  `video/webm;codecs=vp9,opus` → `vp8,opus` → `video/webm`. MP4 variants are
-  listed when the browser can record them natively.
-- MediaRecorder writes WebM without a duration, which breaks seeking in some
-  players. The exporter patches the EBML `Duration` element into the file.
-- **MP4.** If the browser's MediaRecorder can write MP4 directly (recent
-  Chrome/Edge, Safari), pick an MP4 format and no conversion is needed.
-  Otherwise **Convert to MP4** turns the WebM into H.264/AAC in the browser with
-  ffmpeg.wasm. The wrapper is vendored in `vendor/ffmpeg/` (MIT) so its worker
-  is same-origin. The ~31 MB single-thread core is fetched from jsDelivr only
-  when you click the button. Conversion is slow: expect minutes for a 30 s
-  1080p clip, and it is not recommended on phones. On desktop you can do the
-  same with `ffmpeg -i race.webm -c:v libx264 -pix_fmt yuv420p -c:a aac race.mp4`.
-- **Cover image.** A 1080×1920 PNG of the current frame, or of the start,
-  middle or finish (re-simulated deterministically), with optional text such
-  as “WHO WILL WIN?”.
-- Keep the tab visible while recording. Browsers stop drawing hidden tabs.
+### Render video (frame-perfect, WebCodecs)
+
+The live recorder can only capture whatever the browser happens to draw in real
+time, so frame pacing and audio sync depend on how busy the machine is. **Render
+video** does not record anything: it *runs the race itself*, one exact `1/fps` step
+per video frame.
+
+```
+game.update(1/fps) -> draw to an offscreen 1080x1920 canvas -> VideoEncoder
+sound events, stamped with the frame time -> OfflineAudioContext -> AudioEncoder
+both tracks, merged in timestamp order -> mp4-muxer / webm-muxer -> file
+```
+
+- **Formats** are probed with `isConfigSupported`, so only what this browser can
+  actually encode is offered: **MP4 (H.264 + AAC)** (what Instagram likes) where the
+  browser has those encoders, otherwise **WebM (VP9 + Opus)**. MP4 is written with
+  the index up front (fast start). If an encoder fails midway, the next format is
+  tried automatically.
+- **Deterministic.** Same seed and settings give the same frames and the same
+  soundtrack (to float rounding: Chromium sums overlapping voices in a varying order,
+  which moves samples by about 1e-7, i.e. -140 dBFS), on any machine load. The tab can
+  be in the background and rendering can run faster than real time. Compressed bytes
+  may still differ between encoders and machines.
+- **Soundtrack.** The sound effects use the same synthesis code as live playback,
+  scheduled at exact times. A procedural score (`Music.js`: 128 bpm, key and
+  variations from the seed, four layers from a drone up to arpeggio + clap) follows
+  a race-tension curve (`Intensity.js`: how close the purple is to a racer, how far
+  the leader has climbed, whether the blade is out) and fades out at the end. The mix
+  is compressed and normalised to a consistent loudness with a soft limiter (no
+  clipping). Set *Music* to 0 for effects only.
+- **What is in the frame.** Only the canvas: HUD, world and messages. The safe-area
+  guide and debug overlay are never rendered into an export.
+- **Also included**: progress with speed and ETA, cancel, a live preview while it
+  renders, **Auto: find race + render** and **Batch** (N different interesting
+  seeds, downloaded one after another; the browser may ask once to allow multiple
+  downloads), and **Copy caption** (winner, time, seed and hashtags as plain text).
+- **Requirements**: WebCodecs (Chrome or Edge 94+, Firefox 130+, Safari 16.4+). The
+  panel says so when it is missing and falls back to live capture.
+
+### Live capture (fallback)
+
+`canvas.captureStream()` + the Web Audio mix → `MediaRecorder`, in real time. The
+container and codec are picked with `MediaRecorder.isTypeSupported()`
+(`vp9,opus` → `vp8,opus` → `webm`; MP4 where the browser can record it). The WebM
+duration is patched into the file (MediaRecorder omits it). Keep the tab visible
+while it records.
+
+### MP4 from a WebM
+
+If Render video could only produce WebM, **Convert to MP4** runs ffmpeg.wasm in the
+browser (H.264 + AAC). The wrapper is vendored in `vendor/ffmpeg/` (MIT); the ~31 MB
+core is fetched from jsDelivr only when you click the button. It is slow (minutes for
+a 30 s clip) and not recommended on phones. On a desktop you can do the same with
+`ffmpeg -i race.webm -c:v libx264 -pix_fmt yuv420p -c:a aac race.mp4`.
+
+### Cover image
+
+A 1080×1920 PNG of the current frame, or of the start, middle or finish
+(re-simulated deterministically), with optional text such as “WHO WILL WIN?”.
 
 ### Browser support
 
-| | Simulation | Sound | Recording |
-| --- | --- | --- | --- |
-| Chrome / Edge (desktop) | yes | yes | WebM (VP9/VP8 + Opus); MP4 on recent versions |
-| Firefox (desktop) | yes | yes | WebM (VP8/VP9 + Opus) |
-| Safari 14.1+ (macOS/iOS) | yes | yes | MP4 where MediaRecorder supports it |
-| Mobile Chrome (Android) | yes | yes | usually WebM; performance varies by device |
+| | Simulation | Sound | Render video | Live capture |
+| --- | --- | --- | --- | --- |
+| Chrome / Edge (desktop) | yes | yes | MP4 (H.264 + AAC) or WebM (VP9 + Opus), by what the browser can encode | WebM; MP4 on recent versions |
+| Firefox 130+ (desktop) | yes | yes | WebM (VP9 + Opus) | WebM |
+| Safari 16.4+ | yes | yes | depends on the codecs exposed | MP4 where supported |
+| Mobile Chrome (Android) | yes | yes | works where WebCodecs encoders exist; slow on weak devices | usually WebM |
 
-When recording is not possible, the panel explains why and the simulation keeps
-working. Audio starts after the first click or tap, because of browser autoplay
-rules.
+Only the WebM/VP9 path and the MP4 *container* path (with VP9) were exercised in
+automated tests; H.264 and AAC encoding depend on codecs this project's test browser
+does not ship. Audio starts after the first click or tap, because of browser autoplay
+rules (rendering does not need it).
 
 ### Instagram-safe composition
 
@@ -348,67 +406,112 @@ js/core/
   RNG.js                   seeded PRNG, hashing, seed strings
   EventBus.js              pub/sub
   Simulation.js            deterministic fixed-step race (no DOM)
+  Intensity.js             race tension curve (drives the score)
   Game.js                  state machine + presentation timeline
   GameLoop.js              rAF driver
   Share.js                 URL <-> config
 js/physics/                Collision.js, SpatialGrid.js (broadphase), Vector.js
 js/entities/               Contestant, Wall/Bumper, Barrier, Weapon, FinishZone, DangerZone
 js/generation/
-  RouteGenerator.js        route skeleton + shape classification
-  SectionTemplates.js      section templates with fit checks
-  LevelGenerator.js        full pipeline + retries
-  CourseField.js           configuration space, geodesic fields, flow
+  LevelGenerator.js        plan -> geometry -> content -> field -> checks, with retries
+  Pieces.js                set pieces (plinko, slalom, lanes, funnel, armory, gates)
+  StartStalls.js           starting stalls + the colour-chain solver
+  CourseField.js           configuration space, geodesic fields, flow, purple push normal
   LevelValidator.js        structural checks + race verdict
   EntertainmentEvaluator.js
   RaceFinder.js            "generate interesting race"
 js/rendering/              Renderer.js, Camera.js, Particles.js (pooled)
-js/audio/                  AudioEngine.js (graph, throttling), Sounds.js (synthesis)
-js/recording/              Recorder.js, VideoExporter.js, WebmDuration.js
+js/audio/
+  AudioEngine.js           live graph, throttling, music bus
+  Sounds.js, SoundMap.js   synthesised effects, event -> sound map (shared with export)
+  Music.js                 procedural score (live player + shared step scheduler)
+  OfflineMixer.js          renders a whole soundtrack offline, loudness normalisation
+js/recording/
+  FrameExporter.js         frame-perfect WebCodecs export
+  Recorder.js              live MediaRecorder capture (fallback)
+  VideoExporter.js         downloads, PNG covers, ffmpeg.wasm conversion
+  WebmDuration.js          patches the duration into MediaRecorder WebM
 js/ui/                     CreatorPanel.js, StatsPanel.js
 js/dev/                    SelfTests.js, DevTools.js (testSeeds)
 vendor/ffmpeg/             ffmpeg.wasm wrapper (MIT), loaded on demand
-tests/                     run-tests.mjs, stress.mjs, viz.html
+vendor/muxers/             mp4-muxer, webm-muxer (MIT)
+assets/fonts/              Barlow Condensed, IBM Plex Mono (SIL OFL)
+tests/                     run-tests.mjs, e2e.mjs, stress.mjs, and tuning tools (below)
 ```
 
-Game states: `IDLE → GENERATED → COUNTDOWN → RUNNING → FINISHED`. `REPLAY` and
-`RECORDING` are session modes layered on the running race and are shown in the
-header badge.
+Game states: `IDLE → GENERATED → COUNTDOWN → RUNNING → FINISHED`. `REPLAY`,
+`RECORDING` and `RENDERING` are session modes layered on the running race and are
+shown in the header badge.
 
 The simulation modules have no DOM dependency. The same code runs the on-screen
-race, the headless validation run, the interesting-race search, the Node tests
-and cover-frame re-simulation.
+race, the headless validation run, the interesting-race search, the Node tests,
+cover-frame re-simulation and the video export.
 
 ## Testing
 
-`node tests/run-tests.mjs` (and **Developer → Run self-tests** in the page) checks:
+`node tests/run-tests.mjs` (and **Developer → Run self-tests** in the page) runs 26
+self-tests. They check:
 
-- same seed → same map, same winner and duration, same event timeline
-- results independent of frame rate (30 / 59.94 / 144 fps)
-- different seeds → different maps and routes
+- same seed → same map, same winner and duration, same event timeline; results
+  independent of frame rate (30 / 59.94 / 144 fps); different seeds → different maps
 - racers cannot pass through a thin wall even at 6× speed
-- colour barriers break only for their colour; grey blocks accept every colour
-- orphaned colour barriers turn neutral
-- blade ownership, and an armed collision eliminates the target
-- the purple field eliminates racers
-- finish detection ends a *First wins* race
-- recording-support detection handles browsers without canvas capture, MediaRecorder or codecs
-- structural validation of 120 generated maps across presets
+- colour bricks break only for their colour and still bounce the racer; grey blocks
+  accept every colour; orphaned colour bricks turn neutral
+- blade ownership; an armed collision eliminates the target
+- the purple crushes racers against a gate they cannot open, but only bounces them
+  otherwise; **it shoves a racer along its own front normal, and a fast front
+  sweeping through a lane never crushes a racer that still has room**
+- the starting stalls are solvable, chained, and the exit brick never belongs to its neighbour
+- the tower structure (stalls at the bottom, finish on top, alternating halls, doors
+  inside both halls, plug block count, hall counts per preset) and ≥ 20 px clear
+  gaps between obstacles
+- the tension curve is deterministic, bounded and rises toward the finish
+- the score's key and arrangement are seeded and layered; audio normalisation reaches
+  the target loudness and never clips
+- finish detection; recording-support detection on browsers without the APIs;
+  structural validation of 120 generated maps across presets
 
-`testSeeds(count)` (developer panel, `race.testSeeds(1000)` in the console, or
-`tests/stress.mjs`) reports valid/invalid maps, generation retries, average
-duration, stuck races, no-winner races, wins per colour (fairness), kills,
-blade pickup rate and average entertainment score. Use it when tuning the
-generator.
+The two purple regression tests were checked by **mutation**: re-introducing the
+original bugs (push along the course flow; per-tile gap) makes them fail.
+
+`node tests/e2e.mjs` needs Playwright + Chromium (`PLAYWRIGHT_MODULE` can point at an
+existing install) and runs the real thing: exports WebM and MP4-container videos,
+decodes them back (1080×1920, duration = frames/fps, audio and video lengths agree,
+audible and unclipped, moov before mdat), checks determinism (same frames, same
+soundtrack fingerprint, sample drift below 1e-5), 60 vs 30 fps, the automatic encoder fallback, the auto/batch flow
+and live capture.
+
+Tuning tools (they print the numbers the presets are tuned against):
+
+| Tool | Use |
+| --- | --- |
+| `tests/stress.mjs [preset] [n]` | `testSeeds(n)`: validity, retries, duration, wins per colour, score |
+| `tests/profile.mjs [preset] [n]` | where racers die, near misses, quiet gaps, attempts |
+| `tests/tune.mjs preset '[overrides]' [n] ['{cfg}']` | compare purple parameters on unfiltered races |
+| `tests/stallprobe.mjs [n]` | how long the starting puzzle takes with the purple off |
+| `tests/scoredist.mjs presets [n]` | distribution of the entertainment score |
+| `tests/gallery.html?preset=medium&n=6&t=14` | contact sheet of generated levels (`t` = seconds to simulate first) |
 
 ## Known limitations
 
-- Recording is real-time: a 30 s race takes 30 s to record, in a visible tab.
-- `MediaRecorder` bitrate and frame pacing depend on the machine. Low-end
-  phones may drop frames in the video (the simulation itself is unaffected).
+- **H.264/AAC encoding was not testable here.** The MP4 path shares its code with the
+  tested one, and a failing encoder falls back to WebM automatically, but it has not
+  been run against a real H.264/AAC encoder.
+- Rendering speed depends on the browser. In this project's software-only headless
+  Chromium a 26 s video renders in about 30 s; browsers with GPU-accelerated canvas
+  and hardware encoders should be faster, but that was not measured.
+- The score is generated and checked numerically (steady 128 bpm pulse, balanced
+  spectrum, no clipping) but its taste is unreviewed.
+- Live capture is real-time, needs a visible tab, and frame pacing depends on the
+  machine.
 - MP4 conversion with ffmpeg.wasm is heavy (31 MB download, single-threaded).
-- Determinism is guaranteed within a JavaScript engine, not across engines.
-- The purple front is drawn on a 4 px grid, which gives it a slightly stepped
-  edge by design.
+- Determinism is guaranteed within a JavaScript engine, not across engines
+  (transcendental functions can differ). Encoded bytes can differ between machines.
+- The simulation and every video frame are exactly reproducible; the soundtrack is
+  reproducible to float rounding only. Chromium adds simultaneous voices in a varying
+  order, so two renders of one race differ by about 1e-7 (-140 dBFS), which is inaudible
+  and far below the 16-bit/Opus noise floor.
+- The purple front is drawn on a 4 px grid, which gives it a slightly stepped edge by design.
 
 ## Roadmap
 
